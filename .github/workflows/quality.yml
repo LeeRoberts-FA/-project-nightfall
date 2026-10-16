@@ -21,6 +21,7 @@ jobs:
         run: |
           node --check server.js
           node --check public/game.js
+          node --check public/scene3d.js
           for file in tests/*.test.js; do node --check "$file"; done
       - name: Game and network integration tests
         run: npm test
@@ -37,3 +38,5 @@ jobs:
           curl --fail --silent http://127.0.0.1:30281/ | grep -q 'PROJECT NIGHTFALL'
           curl --fail --silent http://127.0.0.1:30281/game.js | grep -q 'WebSocket'
           curl --fail --silent http://127.0.0.1:30281/style.css | grep -q 'mode-selection'
+          curl --fail --silent http://127.0.0.1:30281/scene3d.js | grep -q 'NightfallScene'
+          curl --fail --silent http://127.0.0.1:30281/three.module.js | grep -q 'WebGLRenderer'

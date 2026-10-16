@@ -29,3 +29,11 @@ Mixamo is a possible future source of additional game animations after an Adobe 
 ## Asset delivery
 
 Game builds download these assets from the credited source repositories, verify their exact Git blob SHA-1 and file size, and host them locally on the same game origin. Source URLs and expected SHA values are defined in `scripts/install-assets.cjs`. The files are intentionally excluded from Git source control. Before a commercial release, replace these experimental characters with art that meets the target aesthetic; optimize performance and check license/attribution obligations. Third-party credits must be retained.
+
+## Quarantine release 1.3
+
+- **M4A1 assault rifle** by **nisu**, CC0 1.0: https://opengameart.org/content/m4a1-assault-rifle — the integrated GLB identifies this source in its embedded metadata. Attachments: **Quaternius**, CC0 1.0, https://poly.pizza/bundle/Ultimate-Guns-Pack-cpgUfI4t2F. Converted GLB from cktang88/3d-fps; runtime scale, grip placement and animation changes.
+- **Destroyed Ford Crown Vic** by **alexdelker**, CC BY 4.0: https://sketchfab.com/3d-models/destroyed-ford-crown-vic-1506140c97654d759cc4c60c20d1d2a8 — optimized GLB from cktang88/3d-fps, scaled and relit at runtime.
+- Infected now use the credited **BAMEN Military Soldier** rig and motion library with Nightfall material recoloring, wounds, growths and altered animation speeds. These are military infected variants, not characters downloaded from Mixamo. The old Quaternius test zombie is not rendered in this release.
+- Menu key art: generated for Project Nightfall using OpenAI image generation. It is menu artwork, not a gameplay capture. Prompt: realistic military survival horror, tactical operative in a rainy quarantined American city at blue hour, amber emergency lights, no text or logos. Asset: `public/menu-art.webp`.
+- Uniform grain, environmental labels, architectural dressing and synthesized weapon feedback: authored in Nightfall code.

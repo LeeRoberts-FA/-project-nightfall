@@ -40,6 +40,9 @@ jobs:
           curl --fail --silent http://127.0.0.1:30281/style.css | grep -q 'mode-selection'
           curl --fail --silent http://127.0.0.1:30281/scene3d.js | grep -q 'NightfallScene'
           curl --fail --silent http://127.0.0.1:30281/three.module.js | grep -q 'WebGLRenderer'
+          test $(wc -c < public/models/soldier.glb) -eq 3094592
+          test $(wc -c < public/models/zombie.glb) -eq 831380
+          curl --fail --silent http://127.0.0.1:30281/models/soldier.glb | wc -c | grep -q '3094592'
       - name: Install headless Chromium gameplay tester
         run: |
           npm install --no-save playwright

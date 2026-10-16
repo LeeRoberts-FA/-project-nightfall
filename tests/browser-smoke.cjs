@@ -3,7 +3,7 @@ const fs=require('node:fs');const path=require('node:path');const {chromium}=req
 (async()=>{
 const url=process.env.NIGHTFALL_URL||'http://127.0.0.1:30281';
 const browser=await chromium.launch({headless:true,args:['--use-gl=angle','--use-angle=swiftshader','--enable-webgl','--no-sandbox','--disable-dev-shm-usage']});
-const failures=[],logs=[],failedRequests=[];
+const failures=[],logs=[],failedRequests=[];let guestPage=null;
 const context=await browser.newContext({viewport:{width:390,height:844},deviceScaleFactor:1,isMobile:true,hasTouch:true});
 const page=await context.newPage();
 page.on('pageerror',err=>failures.push(err.message));
@@ -51,7 +51,7 @@ await page.locator('#name').fill('QA HOST');await page.locator('#create').click(
 await page.waitForFunction(()=>!document.getElementById('lobby').classList.contains('hidden'));
 const code=await page.locator('#roomcode').textContent();
 const guestContext=await browser.newContext({viewport:{width:1280,height:800}}),guest=await guestContext.newPage();
-guest.on('pageerror',err=>failures.push('Guest: '+err.message));
+guestPage=guest;guest.on('console',msg=>{if(msg.type()==='error'||msg.type()==='warning')logs.push('Guest: '+msg.text().slice(0,400))});guest.on('pageerror',err=>failures.push('Guest: '+err.message));
 await guest.goto(url,{waitUntil:'domcontentloaded'});
 await guest.waitForFunction(()=>document.querySelector('#status')?.textContent?.includes('ONLINE')&&document.querySelector('#renderStatus')?.dataset.ready==='true',null,{timeout:30000});
 await guest.locator('#name').fill('QA GUEST');await guest.locator('#code').fill(code);await guest.locator('#join').click();
@@ -66,5 +66,7 @@ console.log('NIGHTFALL_COOP_BROWSER: two isolated contexts joined, deployed and 
 await guestContext.close();
 if(failures.length)throw Error('Browser JS exceptions: '+failures.join('; '));
 if(logs.some(x=>/asset failed|3d frame error|3d initialization|failed to load resource|module/i.test(x)))throw Error('3D renderer/asset load error: '+logs.join('; '));
+}catch(error){
+ for(const [name,p] of [['host',page],['guest',guestPage]]){if(!p)continue;try{const diagnostic=await p.evaluate(()=>({visual:window.__nightfallVisualReport?.(),screens:['home','lobby','game','result'].filter(id=>!document.getElementById(id)?.classList.contains('hidden')),status:document.getElementById('status')?.textContent,toast:document.getElementById('toast')?.textContent,room:document.getElementById('roomcode')?.textContent,count:document.getElementById('count')?.textContent}));console.error('NIGHTFALL_FAILURE_'+name+':'+JSON.stringify({diagnostic,failures,logs}));fs.mkdirSync('test-results',{recursive:true});fs.writeFileSync('test-results/'+name+'-failure.json',JSON.stringify({diagnostic,failures,logs},null,2));await p.screenshot({path:'test-results/'+name+'-failure.jpg',type:'jpeg',quality:70,timeout:10000})}catch(e){console.error('Diagnostic failed:',e.message)}}throw error;
 }finally{await browser.close()}
 })().catch(e=>{console.error('NIGHTFALL_BROWSER_FAILED:'+e.stack);process.exitCode=1});

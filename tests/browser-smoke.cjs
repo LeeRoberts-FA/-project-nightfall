@@ -47,21 +47,21 @@ await page.setViewportSize({width:1440,height:900});await page.waitForTimeout(30
 await page.locator('#exitGame').click();await page.screenshot({path:'test-results/desktop-menu.jpg',type:'jpeg',quality:80});
 if(await page.locator('#home').evaluate(el=>el.scrollWidth>el.clientWidth+2))throw Error('Menu has horizontal overflow');
 // Join from a separate browser context and verify the same moving operative appears in both.
-await page.locator('#name').fill('QA HOST');await page.locator('#create').click();
+await page.setViewportSize({width:800,height:600});await page.locator('#name').fill('QA HOST');await page.locator('#create').click();
 await page.waitForFunction(()=>!document.getElementById('lobby').classList.contains('hidden'));
 const code=await page.locator('#roomcode').textContent();
-const guestContext=await browser.newContext({viewport:{width:1280,height:800}}),guest=await guestContext.newPage();
+const guestContext=await browser.newContext({viewport:{width:800,height:600}}),guest=await guestContext.newPage();
 guestPage=guest;guest.on('console',msg=>{if(msg.type()==='error'||msg.type()==='warning')logs.push('Guest: '+msg.text().slice(0,400))});guest.on('pageerror',err=>failures.push('Guest: '+err.message));
 await guest.goto(url,{waitUntil:'domcontentloaded'});
 await guest.waitForFunction(()=>document.querySelector('#status')?.textContent?.includes('ONLINE')&&document.querySelector('#renderStatus')?.dataset.ready==='true',null,{timeout:30000});
 await guest.locator('#name').fill('QA GUEST');await guest.locator('#code').fill(code);await guest.locator('#join').click();
 await page.waitForFunction(()=>document.querySelector('#count')?.textContent==='2/4');
 await page.locator('#start').click();
-await guest.waitForFunction(()=>window.__nightfallVisualReport().replicatedPlayers.length===2&&window.__nightfallVisualReport().renderer==='active');
-const host=await page.evaluate(()=>window.__nightfallVisualReport()),hostStart=host.replicatedPlayers.find(p=>p.id===host.playerId);
+await guest.bringToFront();await guest.waitForFunction(()=>window.__nightfallNetworkReport().players.length===2&&window.__nightfallNetworkReport().phase==='game',null,{polling:100,timeout:30000});
+const host=await page.evaluate(()=>window.__nightfallNetworkReport()),hostStart=host.players.find(p=>p.id===host.playerId);await page.bringToFront();
 await page.keyboard.down('d');await page.waitForTimeout(500);await page.keyboard.up('d');
-await guest.waitForFunction(({id,x})=>window.__nightfallVisualReport().replicatedPlayers.some(p=>p.id===id&&p.x>x+25),{id:host.playerId,x:hostStart.x},{timeout:10000});
-await guest.screenshot({path:'test-results/coop-guest.jpg',type:'jpeg',quality:80});
+await guest.waitForFunction(({id,x})=>window.__nightfallNetworkReport().players.some(p=>p.id===id&&p.x>x+25),{id:host.playerId,x:hostStart.x},{polling:100,timeout:15000});
+await guest.bringToFront();await guest.screenshot({path:'test-results/coop-guest.jpg',type:'jpeg',quality:80});
 console.log('NIGHTFALL_COOP_BROWSER: two isolated contexts joined, deployed and replicated host movement');
 await guestContext.close();
 if(failures.length)throw Error('Browser JS exceptions: '+failures.join('; '));

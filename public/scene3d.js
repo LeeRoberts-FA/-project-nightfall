@@ -78,7 +78,10 @@ export class NightfallScene {
   }
   async loadModels(){const load=url=>this.loader.loadAsync(url);try{const [soldier,rifle,car]=await Promise.all([load('/models/soldier.glb'),load('/models/rifle.glb'),load('/models/burnt-car.glb')]);this.models.survivor=soldier;this.models.zombie=soldier;this.models.rifle=rifle;this.models.car=car;
     for(const slot of this.propSlots){const model=car.scene.clone(true),box=new THREE.Box3().setFromObject(model),size=box.getSize(new THREE.Vector3()),scale=4.8/Math.max(size.x,size.z);model.scale.setScalar(scale);const c=box.getCenter(new THREE.Vector3());model.position.set(-c.x*scale,-box.min.y*scale,-c.z*scale);model.traverse(n=>{if(n.isMesh){n.castShadow=true;n.receiveShadow=true}});slot.add(model)}
-    for(const entry of this.entities.values())this.attachModel(entry);return true;
+    for(const entry of this.entities.values())this.attachModel(entry);
+    // Compile character, weapon and district shaders before a mission starts advancing on the server.
+    const warm=[this.makeEntity('assault','survivor'),this.makeEntity('shambler','zombie')];warm[1].obj.position.set(2,0,-3);this.camera.position.set(0,3,6);this.camera.lookAt(0,1,0);this.renderer.setSize(64,64,false);
+    try{await this.renderer.compileAsync(this.scene,this.camera);this.renderer.render(this.scene,this.camera)}finally{for(const e of warm){e.obj.removeFromParent();e.mixer?.stopAllAction();e.model?.traverse(n=>{if(n.isMesh)for(const m of Array.isArray(n.material)?n.material:[n.material])m.dispose()});e.shadow.geometry.dispose();e.shadow.material.dispose()}}return true;
     }catch(e){console.error('Character or environment asset failed',e);throw e}}
   makeEntity(kind,type,boss=false){const obj=new THREE.Group();this.scene.add(obj);const entry={obj,kind,type,boss};
     // Contact shadows retain grounding on devices with reduced shadow quality.

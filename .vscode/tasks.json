@@ -1,0 +1,58 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Nightfall: install dependencies and art",
+      "type": "shell",
+      "command": "npm ci",
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": []
+    },
+    {
+      "label": "Nightfall: start dev server",
+      "type": "shell",
+      "command": "npm start",
+      "options": {
+        "cwd": "${workspaceFolder}",
+        "env": { "PORT": "30281" }
+      },
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "nightfall-server",
+        "pattern": {
+          "regexp": "^(.*):(\\d+):(\\d+): (.*)$",
+          "file": 1,
+          "line": 2,
+          "column": 3,
+          "message": 4
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": ".*",
+          "endsPattern": "Project Nightfall live on port 30281"
+        }
+      },
+      "presentation": { "reveal": "always", "panel": "dedicated" },
+      "runOptions": { "instanceLimit": 1 }
+    },
+    {
+      "label": "Nightfall: integration tests",
+      "type": "shell",
+      "command": "npm test",
+      "options": { "cwd": "${workspaceFolder}" },
+      "group": { "kind": "test", "isDefault": true },
+      "problemMatcher": []
+    },
+    {
+      "label": "Nightfall: browser smoke (Playwright required)",
+      "type": "shell",
+      "command": "node tests/browser-smoke.cjs",
+      "dependsOn": "Nightfall: start dev server",
+      "options": {
+        "cwd": "${workspaceFolder}",
+        "env": { "NIGHTFALL_URL": "http://127.0.0.1:30281" }
+      },
+      "problemMatcher": []
+    }
+  ]
+}

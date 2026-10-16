@@ -1,0 +1,41 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Nightfall: server (Node)",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/server.js",
+      "cwd": "${workspaceFolder}",
+      "env": { "PORT": "30281" },
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**"]
+    },
+    {
+      "name": "Nightfall: browser (Edge)",
+      "type": "msedge",
+      "request": "launch",
+      "url": "http://localhost:30281",
+      "webRoot": "${workspaceFolder}/public"
+    },
+    {
+      "name": "Nightfall: browser (Chrome)",
+      "type": "chrome",
+      "request": "launch",
+      "url": "http://localhost:30281",
+      "webRoot": "${workspaceFolder}/public"
+    }
+  ],
+  "compounds": [
+    {
+      "name": "Nightfall: server + Edge",
+      "configurations": ["Nightfall: server (Node)", "Nightfall: browser (Edge)"],
+      "stopAll": true
+    },
+    {
+      "name": "Nightfall: server + Chrome",
+      "configurations": ["Nightfall: server (Node)", "Nightfall: browser (Chrome)"],
+      "stopAll": true
+    }
+  ]
+}

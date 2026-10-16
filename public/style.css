@@ -45,3 +45,6 @@
 .joy-zone,.abilityMobile,.callout{z-index:4}
 .gamehead{background:linear-gradient(90deg,#122632,#182c33,#14212d);border-bottom:1px solid #56717d}
 .hud{background:linear-gradient(90deg,#0d202a,#142b32);border-top:1px solid #49616b}
+
+/* Refined nonblocking combat briefing */
+.playfield .callout{top:8%;font-size:clamp(11px,2vw,16px);letter-spacing:.12em;background:#04191edb;border-color:#4ca8a6;color:#fae2b2;min-width:0;max-width:calc(100% - 40px);white-space:normal;padding:10px 14px;line-height:1.35}

@@ -35,3 +35,13 @@
 .difficulty.active{background:#42553c;border-color:#e2d48a;color:#fff}
 .difficulty[data-difficulty="nightmare"].active{background:#643540;border-color:#ff6a7a}
 @media(max-width:480px){.mode-options{grid-template-columns:1fr 1fr}.mode-option{min-height:105px;padding:8px}.mode-option b{font-size:10px}.difficulty{font-size:9px}}
+
+
+/* WebGL third-person combat upgrade: old canvas remains a transparent input surface and emergency fallback. */
+.playfield{isolation:isolate;background:#101b20}
+.playfield #combat3d{position:absolute;inset:0;width:100%;height:100%;display:block;z-index:0;pointer-events:none}
+.playfield #canvas{position:relative;z-index:1}
+.playfield #canvas.input-overlay{opacity:0;cursor:crosshair}
+.joy-zone,.abilityMobile,.callout{z-index:4}
+.gamehead{background:linear-gradient(90deg,#122632,#182c33,#14212d);border-bottom:1px solid #56717d}
+.hud{background:linear-gradient(90deg,#0d202a,#142b32);border-top:1px solid #49616b}

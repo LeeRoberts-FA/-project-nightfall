@@ -1,21 +1,47 @@
 'use strict';
-// Project Nightfall deployable bootstrap. The complete original source,
-// including browser assets and tests, is packaged in payload-1..4.txt.
-// Run node server.js --extract-only to restore the editable project tree.
-const fs = require('node:fs');
-const path = require('node:path');
-const zlib = require('node:zlib');
-const target = path.join(__dirname, '.nightfall-runtime');
-const encoded = [1,2,3,4].map(i=>fs.readFileSync(path.join(__dirname, 'payload-'+i+'.txt'),'utf8').trim()).join('');
-const files = JSON.parse(zlib.brotliDecompressSync(Buffer.from(encoded,'base64')).toString('utf8'));
-for (const [name, content] of Object.entries(files)) {
-  const full = path.resolve(target,name);
-  if (!full.startsWith(target + path.sep)) throw new Error('Unexpected source file path');
-  fs.mkdirSync(path.dirname(full),{recursive:true});
-  fs.writeFileSync(full,content,'utf8');
+const http=require('node:http'),crypto=require('node:crypto'),fs=require('node:fs'),path=require('node:path');
+const PORT=Number(process.env.PORT)||3000,players=new Map(),rooms=new Map(),classes={assault:{hp:120,speed:205,damage:22},medic:{hp:115,speed:200,damage:16},heavy:{hp:165,speed:155,damage:27},scout:{hp:100,speed:260,damage:19}};
+const uid=()=>crypto.randomBytes(5).toString('hex'),rand=(a,b)=>a+Math.random()*(b-a),clamp=(x,a,b)=>Math.min(b,Math.max(a,x));
+function send(p,data){if(p&&!p.closed)try{p.socket.write(frame(Buffer.from(JSON.stringify(data))))}catch{}}
+function broadcast(room,data){for(const p of room.players.values())send(p,data)}
+function frame(payload){const n=payload.length,h=n<126?Buffer.from([129,n]):n<65536?Buffer.from([129,126,n>>8,n&255]):Buffer.from([129,127,0,0,0,0,(n/16777216)&255,(n/65536)&255,(n/256)&255,n&255]);return Buffer.concat([h,payload])}
+function summary(r){return {code:r.code,host:r.host,phase:r.phase,wave:r.wave,lives:r.lives,players:[...r.players.values()].map(x=>({id:x.id,name:x.name,cls:x.cls,hp:Math.ceil(x.hp),maxHp:x.maxHp,x:Math.round(x.x),y:Math.round(x.y),level:x.level,xp:x.xp,points:x.points,kills:x.kills,upgrades:x.upgrades,alive:x.alive,abilityReady:Date.now()>x.abilityAt}))}}
+function err(p,message){send(p,{type:'error',message})}
+function remove(p){if(!p.room)return;const r=rooms.get(p.room);if(!r)return;r.players.delete(p.id);if(r.host===p.id)r.host=r.players.keys().next().value;if(!r.players.size)rooms.delete(r.code);else broadcast(r,{type:'room',room:summary(r)});p.room=null}
+function spawn(r,boss=false){const side=Math.floor(Math.random()*4),x=side===0?90:side===1?1910:rand(80,1920),y=side===2?80:side===3?1120:rand(80,1120),hp=boss?1150+450*r.players.size:38+12*r.wave;return {id:uid(),x,y,hp,maxHp:hp,r:boss?76:20,boss,hitAt:0,attackAt:0,phase:1}}
+function nextWave(r){r.wave++;r.enemies=[];r.bullets=[];r.next=0;const boss=r.wave===4;for(let n=0;n<(boss?1:3+r.wave*3+r.players.size*2);n++)r.enemies.push(spawn(r,boss));broadcast(r,{type:'notice',message:boss?'BOSS INBOUND — THE WARDEN TITAN': 'WAVE '+r.wave+' — HOSTILES INCOMING'})}
+function start(r){r.phase='playing';r.wave=0;r.lives=4;r.next=0;r.bullets=[];for(const p of r.players.values())Object.assign(p,{x:rand(300,430),y:rand(500,680),hp:classes[p.cls].hp,maxHp:classes[p.cls].hp,alive:true,respawnAt:0,level:1,xp:0,points:0,kills:0,upgrades:{damage:0,armor:0,mobility:0},abilityAt:0,shootAt:0});nextWave(r);broadcast(r,{type:'started',room:summary(r)})}
+function finish(r,won){r.phase=won?'won':'lost';broadcast(r,{type:'finished',won,room:summary(r)})}
+function reward(p,amount){p.xp+=amount;while(p.xp>=p.level*90){p.xp-=p.level*90;p.level++;p.points++;send(p,{type:'notice',message:'LEVEL '+p.level+' — UPGRADE AVAILABLE'})}}
+function shoot(r,p,a,enemy=false){const damage=enemy?12:classes[p.cls].damage*(1+.22*p.upgrades.damage);r.bullets.push({x:p.x,y:p.y,vx:Math.cos(a)*(enemy?350:800),vy:Math.sin(a)*(enemy?350:800),damage,ttl:enemy?2.2:1.8,enemy,id:p.id})}
+function handle(p,m){if(!m||typeof m!=='object')return;
+if(m.type==='create'||m.type==='join'){if(p.room)return err(p,'Already in a squad');let r;if(m.type==='create'){let code;do{code=crypto.randomBytes(4).toString('hex').slice(0,6).toUpperCase()}while(rooms.has(code));r={code,host:p.id,phase:'lobby',players:new Map(),wave:0,lives:4,enemies:[],bullets:[],next:0};rooms.set(code,r)}else{r=rooms.get(String(m.code||'').toUpperCase().replace(/[^A-F0-9]/g,''));if(!r)return err(p,'Squad code not found');if(r.phase!=='lobby')return err(p,'Raid already started');if(r.players.size>=4)return err(p,'Squad full: 4 players maximum')}p.room=r.code;p.name=String(m.name||'OPERATIVE').replace(/[<>]/g,'').trim().slice(0,18)||'OPERATIVE';p.cls=classes[m.cls]?m.cls:'assault';p.maxHp=classes[p.cls].hp;p.hp=p.maxHp;p.x=350;p.y=600;p.alive=true;r.players.set(p.id,p);send(p,{type:'welcome',you:p.id,code:r.code});broadcast(r,{type:'room',room:summary(r)});return}
+const r=rooms.get(p.room);if(!r||!r.players.has(p.id))return;
+if(m.type==='leave')return remove(p);
+if(m.type==='start'){if(r.host!==p.id)return err(p,'Only leader can deploy');if(r.players.size<2)return err(p,'Two operatives required');if(!['lobby','won','lost'].includes(r.phase))return;return start(r)}
+if(r.phase!=='playing')return;
+if(m.type==='input'){p.mx=clamp(Number(m.mx)||0,-1,1);p.my=clamp(Number(m.my)||0,-1,1);p.angle=Number.isFinite(m.angle)?clamp(m.angle,-50,50):0;p.firing=m.firing===true;p.useAbility=m.ability===true}
+if(m.type==='upgrade'){const k=m.key;if(!['damage','armor','mobility'].includes(k)||p.points<1||p.upgrades[k]>=5)return;p.points--;p.upgrades[k]++;if(k==='armor'){p.maxHp+=25;p.hp=Math.min(p.maxHp,p.hp+25)}send(p,{type:'notice',message:k.toUpperCase()+' UPGRADED'})}
 }
-if (process.argv.includes('--extract-only')) {
-  console.log('Restored '+Object.keys(files).length+' source files in '+target);
-} else {
-  require(path.join(target,'server.js'));
+function tick(dt,now){for(const r of rooms.values()){if(r.phase!=='playing')continue;
+for(const p of r.players.values()){if(!p.alive){if(p.respawnAt&&now>=p.respawnAt){p.alive=true;p.hp=p.maxHp;p.x=350;p.y=600;p.respawnAt=0}continue}
+const speed=classes[p.cls].speed*(1+.11*p.upgrades.mobility),len=Math.max(1,Math.hypot(p.mx||0,p.my||0));p.x=clamp(p.x+(p.mx||0)/len*speed*dt,25,1975);p.y=clamp(p.y+(p.my||0)/len*speed*dt,25,1175);
+if(p.firing&&now>p.shootAt){shoot(r,p,p.angle);p.shootAt=now+(p.cls==='heavy'?270:180)}
+if(p.useAbility&&now>=p.abilityAt){p.abilityAt=now+16000;p.useAbility=false;if(p.cls==='medic')for(const ally of r.players.values())if(ally.alive&&Math.hypot(ally.x-p.x,ally.y-p.y)<420)ally.hp=Math.min(ally.maxHp,ally.hp+65);else if(p.cls==='assault')for(let i=-2;i<=2;i++)shoot(r,p,p.angle+i*.16);else if(p.cls==='scout'){p.x=clamp(p.x+Math.cos(p.angle)*180,25,1975);p.y=clamp(p.y+Math.sin(p.angle)*180,25,1175)}else p.hp=Math.min(p.maxHp,p.hp+50)}
 }
+for(const e of r.enemies){if(e.hp<=0)continue;const alive=[...r.players.values()].filter(p=>p.alive);if(!alive.length)break;const p=alive.reduce((a,b)=>Math.hypot(a.x-e.x,a.y-e.y)<Math.hypot(b.x-e.x,b.y-e.y)?a:b),angle=Math.atan2(p.y-e.y,p.x-e.x),d=Math.hypot(p.x-e.x,p.y-e.y);if(e.boss){e.phase=e.hp/e.maxHp<.35?3:e.hp/e.maxHp<.7?2:1;if(d>180){e.x+=Math.cos(angle)*70*dt;e.y+=Math.sin(angle)*70*dt}if(now>e.attackAt){for(let a=0;a<Math.PI*2;a+=Math.PI/(5+e.phase*2))shoot(r,{x:e.x,y:e.y,id:e.id,cls:'assault',upgrades:{damage:0}},a,true);e.attackAt=now+(1800-e.phase*300)}}else{if(d>35){e.x+=Math.cos(angle)*(85+r.wave*14)*dt;e.y+=Math.sin(angle)*(85+r.wave*14)*dt}if(d<47&&now>e.hitAt){p.hp=Math.max(0,p.hp-14);e.hitAt=now+900}}}
+for(const b of r.bullets){b.x+=b.vx*dt;b.y+=b.vy*dt;b.ttl-=dt;if(b.ttl<=0)continue;if(b.enemy){for(const p of r.players.values()){if(p.alive&&Math.hypot(b.x-p.x,b.y-p.y)<22){p.hp=Math.max(0,p.hp-b.damage);b.ttl=0;break}}}else{for(const e of r.enemies){if(e.hp>0&&Math.hypot(b.x-e.x,b.y-e.y)<e.r+5){e.hp-=b.damage;b.ttl=0;if(e.hp<=0){const p=r.players.get(b.id);if(p){p.kills++;reward(p,e.boss?450:24)}if(e.boss){finish(r,true);break}}break}}}}
+r.bullets=r.bullets.filter(b=>b.ttl>0);r.enemies=r.enemies.filter(e=>e.hp>0);for(const p of r.players.values()){if(p.alive&&p.hp<=0){p.alive=false;if(r.lives>0){r.lives--;p.respawnAt=now+4000}else p.respawnAt=0}}
+if(r.phase!=='playing')continue;
+if(![...r.players.values()].some(p=>p.alive||p.respawnAt)){finish(r,false);continue}
+if(r.enemies.length===0&&!r.next)r.next=now+2600;
+if(r.next&&now>=r.next)nextWave(r);
+broadcast(r,{type:'snapshot',state:{...summary(r),enemies:r.enemies.map(e=>({id:e.id,x:Math.round(e.x),y:Math.round(e.y),hp:Math.ceil(e.hp),maxHp:e.maxHp,boss:e.boss,phase:e.phase,r:e.r})),bullets:r.bullets.map(b=>({x:Math.round(b.x),y:Math.round(b.y),enemy:b.enemy})),nextWave:r.next?Math.max(0,Math.ceil((r.next-now)/1000)):0}})
+}}
+function parseFrames(p,buf){p.buffer=Buffer.concat([p.buffer,buf]);while(p.buffer.length>=2){const b=p.buffer,opcode=b[0]&15,masked=!!(b[1]&128);let len=b[1]&127,pos=2;if(len===126){if(b.length<4)return;len=b.readUInt16BE(2);pos=4}else if(len===127){if(b.length<10)return;len=Number(b.readBigUInt64BE(2));pos=10}if(len>65536){p.socket.destroy();return}if(!masked){p.socket.destroy();return}if(b.length<pos+4+len)return;const mask=b.subarray(pos,pos+4),data=Buffer.from(b.subarray(pos+4,pos+4+len));for(let i=0;i<data.length;i++)data[i]^=mask[i%4];p.buffer=b.subarray(pos+4+len);if(opcode===8){p.socket.end();return}if(opcode===9){p.socket.write(Buffer.from([0x8a,0]));continue}if(opcode===1){try{handle(p,JSON.parse(data.toString('utf8')))}catch{}}}}
+const root=path.join(__dirname,'public'),mime={'.html':'text/html','.js':'application/javascript','.css':'text/css'};
+const server=http.createServer((req,res)=>{let u;try{u=new URL(req.url,'http://localhost')}catch{res.writeHead(400).end();return}if(u.pathname==='/health'){res.writeHead(200,{'content-type':'application/json'}).end(JSON.stringify({ok:true,game:'Project Nightfall',rooms:rooms.size}));return}let pathname;try{pathname=decodeURIComponent(u.pathname==='/'?'/index.html':u.pathname)}catch{res.writeHead(400).end();return}const file=path.resolve(root,'.'+pathname);if(!file.startsWith(root+path.sep)){res.writeHead(403).end();return}fs.readFile(file,(e,data)=>e?res.writeHead(404).end('Not Found'):res.writeHead(200,{'content-type':mime[path.extname(file)]||'text/plain','x-content-type-options':'nosniff'}).end(data))});
+server.on('upgrade',(req,socket)=>{if(req.url!=='/ws'||req.headers.upgrade?.toLowerCase()!=='websocket'||!req.headers['sec-websocket-key'])return socket.destroy();const accept=crypto.createHash('sha1').update(req.headers['sec-websocket-key']+'258EAFA5-E914-47DA-95CA-C5AB0DC85B11').digest('base64');socket.write('HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: '+accept+'\r\n\r\n');const p={id:uid(),socket,buffer:Buffer.alloc(0),room:null,mx:0,my:0,angle:0,firing:false,useAbility:false,shootAt:0,abilityAt:0,points:0,kills:0,xp:0,level:1,upgrades:{damage:0,armor:0,mobility:0},closed:false};players.set(p.id,p);socket.on('data',b=>parseFrames(p,b));const close=()=>{if(p.closed)return;p.closed=true;remove(p);players.delete(p.id)};socket.on('close',close);socket.on('error',close)});
+let last=Date.now();setInterval(()=>{const now=Date.now(),dt=Math.min(.065,(now-last)/1000);last=now;tick(dt,now)},65);
+server.listen(PORT,'0.0.0.0',()=>console.log('Project Nightfall live on port '+PORT));
+module.exports={server,rooms};

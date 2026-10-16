@@ -9,7 +9,7 @@ permissions:
 jobs:
   game-validation:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -40,3 +40,19 @@ jobs:
           curl --fail --silent http://127.0.0.1:30281/style.css | grep -q 'mode-selection'
           curl --fail --silent http://127.0.0.1:30281/scene3d.js | grep -q 'NightfallScene'
           curl --fail --silent http://127.0.0.1:30281/three.module.js | grep -q 'WebGLRenderer'
+      - name: Install headless Chromium gameplay tester
+        run: |
+          npm install --no-save playwright
+          npx playwright install --with-deps chromium
+      - name: Simulate iPhone outbreak gameplay and capture actual render
+        run: |
+          PORT=30281 npm start > /tmp/nightfall-browser-server.log 2>&1 &
+          trap 'kill $! 2>/dev/null || true' EXIT
+          node tests/browser-smoke.cjs
+      - name: Publish screenshot and diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightfall-iphone-gameplay
+          path: test-results/
+          if-no-files-found: ignore

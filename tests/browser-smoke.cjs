@@ -34,7 +34,7 @@ const beforeStick=await page.evaluate(()=>window.__nightfallVisualReport().playe
 // A quarter turn must change the camera without changing the player's position.
 await page.locator('#assistButton').click();
 const beforeTurn=await page.evaluate(()=>window.__nightfallVisualReport());
-await page.locator('#cameraRight').click();await page.waitForTimeout(350);
+await page.locator('#cameraRight').click();await page.waitForFunction(before=>{const after=window.__nightfallVisualReport();return Math.hypot(after.cameraPosition[0]-before[0],after.cameraPosition[2]-before[2])>=1},beforeTurn.cameraPosition,{timeout:10000});
 const afterTurn=await page.evaluate(()=>window.__nightfallVisualReport());
 if(Math.abs(afterTurn.cameraYaw-beforeTurn.cameraYaw-Math.PI/4)>.01)throw Error('Camera rotation control failed');
 if(Math.hypot(afterTurn.cameraPosition[0]-beforeTurn.cameraPosition[0],afterTurn.cameraPosition[2]-beforeTurn.cameraPosition[2])<1)throw Error('Camera did not orbit after rotation');

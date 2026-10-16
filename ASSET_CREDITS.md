@@ -22,4 +22,4 @@ Mixamo is a possible future source of additional game animations after an Adobe 
 
 ## Asset delivery
 
-These assets are currently loaded as external URLs for integration testing. A release candidate should pin and locally host licensed production assets, optimize them for mobile, and test network and device performance before release. Third-party asset credits must be retained.
+Game builds download these assets from the credited source repositories, verify their exact Git blob SHA-1 and file size, and host them locally on the same game origin. Source URLs and expected SHA values are defined in `scripts/install-assets.cjs`. The files are intentionally excluded from Git source control. Before a commercial release, replace these experimental characters with art that meets the target aesthetic; optimize performance and check license/attribution obligations. Third-party credits must be retained.

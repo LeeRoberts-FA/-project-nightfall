@@ -7,7 +7,8 @@
   "scripts": {
     "start": "node server.js",
     "test": "node --test tests/*.test.js",
-    "postinstall": "node scripts/install-assets.cjs"
+    "postinstall": "node scripts/install-assets.cjs",
+    "dev": "node server.js"
   },
   "engines": {
     "node": ">=20"

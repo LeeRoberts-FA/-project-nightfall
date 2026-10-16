@@ -2,6 +2,8 @@
 const fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto');
 const root=path.resolve(__dirname,'../public');
 const sources=[
+{name:'models/rifle.glb',expectedBytes:785648,sha:'01dcbaed28efc7173cbefc73b6721306c6ffe634',url:'https://raw.githubusercontent.com/cktang88/3d-fps/main/public/assets/models/weapons/m4a1.glb'},
+{name:'models/burnt-car.glb',expectedBytes:2605856,sha:'b6a2657a9e53c3824d96745a03e4082a8f996f6e',url:'https://raw.githubusercontent.com/cktang88/3d-fps/main/public/assets/ambience/models/burnt_car/burnt_car.glb'},
 {name:'models/soldier.glb',expectedBytes:3094592,sha:'b00ed33108f2579880c82cd27d10f9237ff3a219',url:'https://raw.githubusercontent.com/cktang88/3d-fps/main/public/assets/models/characters/soldier.glb'},
 {name:'models/zombie.glb',expectedBytes:831380,sha:'7670f4cfbcd21a088917cec2078cf93151de72d2',url:'https://raw.githubusercontent.com/mars-tw/storm-apocalypse/main/public/models/zombie.glb'},
 {name:'textures/asphalt-color.webp',expectedBytes:1630170,sha:'3ea2ad5a662d0a4ea4b0ca6f8423562542a027e7',url:'https://raw.githubusercontent.com/cktang88/3d-fps/main/public/assets/textures/Asphalt031/Color.webp'},

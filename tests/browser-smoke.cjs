@@ -13,19 +13,26 @@ try{
 const response=await page.goto(url,{waitUntil:'domcontentloaded',timeout:45000});
 if(response?.status()!==200)throw Error('Homepage HTTP status: '+response?.status());
 await page.waitForFunction(()=>document.querySelector('#status')?.textContent?.includes('ONLINE'),{timeout:25000});
+await page.waitForFunction(()=>document.querySelector('#renderStatus')?.dataset.ready==='true',null,{timeout:30000});
 const options=await page.locator('.mode-option').count();if(options!==2)throw Error('Missing outbreak/raid game modes');
 await page.locator('[data-mission="outbreak"]').click();
 await page.locator('[data-difficulty="recruit"]').click();
 await page.locator('#solo').click();
 await page.waitForFunction(()=>!document.getElementById('game').classList.contains('hidden'),null,{timeout:20000});
-await page.waitForTimeout(2200);
+await page.waitForFunction(()=>window.__nightfallVisualReport?.().renderer==='active',null,{timeout:30000});await page.waitForTimeout(1300);
 const result=await page.evaluate(()=>{
 const c=document.querySelector('#combat3d'),hud=document.getElementById('wave');
 return {threeCanvasPresent:!!c,canvasWidth:c?.width||0,canvasHeight:c?.height||0,webglSupported:!!document.createElement('canvas').getContext('webgl'),wave:hud?.textContent,health:document.querySelector('#health')?.textContent,visible:!document.getElementById('game').classList.contains('hidden'),visual:window.__nightfallVisualReport?.()||null};
 });
 await page.evaluate(()=>window.scrollTo(0,0));const preview=await page.screenshot({type:'jpeg',quality:42,timeout:20000});
-fs.mkdirSync('test-results',{recursive:true});fs.writeFileSync(path.join('test-results','mobile-combat.jpg'),preview);const report={url,...result,console:logs.slice(0,12),pageErrors:failures,requestsFailed:failedRequests.slice(0,12),previewBytes:preview.length};fs.writeFileSync(path.join('test-results','mobile-report.json'),JSON.stringify(report,null,2));process.stdout.write('NIGHTFALL_VISUAL_REPORT:'+JSON.stringify(report)+'\n');process.stdout.write('NIGHTFALL_IMAGE_JPEG_BASE64:'+preview.toString('base64')+'\n');
+fs.mkdirSync('test-results',{recursive:true});fs.writeFileSync(path.join('test-results','mobile-combat.jpg'),preview);const report={url,...result,console:logs.slice(0,12),pageErrors:failures,requestsFailed:failedRequests.slice(0,12),previewBytes:preview.length};fs.writeFileSync(path.join('test-results','mobile-report.json'),JSON.stringify(report,null,2));process.stdout.write('NIGHTFALL_VISUAL_REPORT:'+JSON.stringify(report)+'\n');
 if(!result.visible||!result.threeCanvasPresent||result.canvasWidth<100||result.canvasHeight<100)throw Error('3D combat canvas did not initialize with a usable size');if(!result.visual?.loadedCharacters?.includes('survivor')||!result.visual?.loadedCharacters?.includes('zombie')||result.visual.displayedCharacterModels<2)throw Error('3D character assets did not load and replace placeholder figures');if(!result.visual.playerVisible||Math.abs(result.visual.playerProjected?.x??99)>.75||Math.abs(result.visual.playerProjected?.y??99)>.75)throw Error('Playable character model not framed in on-screen camera');if(!result.visual.pbrTexturesReady)throw Error('PBR surface textures did not load in browser');
+await page.keyboard.down('w');await page.waitForTimeout(600);await page.keyboard.up('w');
+const moved=await page.evaluate(()=>window.__nightfallVisualReport?.().playerWorld);
+if(!moved||Math.hypot(moved[0]-result.visual.playerWorld[0],moved[2]-result.visual.playerWorld[2])<.2)throw Error('Keyboard movement did not move the networked character');
+await page.setViewportSize({width:1440,height:900});await page.waitForTimeout(300);await page.screenshot({path:'test-results/desktop-combat.jpg',type:'jpeg',quality:80});
+await page.locator('#exitGame').click();await page.screenshot({path:'test-results/desktop-menu.jpg',type:'jpeg',quality:80});
+if(await page.locator('#home').evaluate(el=>el.scrollWidth>el.clientWidth+2))throw Error('Menu has horizontal overflow');
 if(failures.length)throw Error('Browser JS exceptions: '+failures.join('; '));
 if(logs.some(x=>/asset failed|3d frame error|3d initialization|failed to load resource|module/i.test(x)))throw Error('3D renderer/asset load error: '+logs.join('; '));
 }finally{await browser.close()}

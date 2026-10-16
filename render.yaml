@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: project-nightfall
+    runtime: node
+    plan: free
+    region: ohio
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /health
+    autoDeployTrigger: commit

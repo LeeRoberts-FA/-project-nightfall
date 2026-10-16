@@ -1,0 +1,40 @@
+name: Nightfall Quality Gate
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  game-validation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install
+        run: npm install
+      - name: Verify JavaScript syntax
+        run: |
+          node --check server.js
+          node --check public/game.js
+          for file in tests/*.test.js; do node --check "$file"; done
+      - name: Game and network integration tests
+        run: npm test
+      - name: HTTP health and website smoke test
+        run: |
+          PORT=30281 npm start > /tmp/nightfall-server.log 2>&1 &
+          pid=$!
+          trap 'kill "$pid" 2>/dev/null || true' EXIT
+          for x in {1..50}; do
+            curl --fail --silent http://127.0.0.1:30281/health > /tmp/nightfall-health.json && break
+            sleep 0.2
+          done
+          node -e "const x=require('/tmp/nightfall-health.json'); if(!x.ok)process.exit(1)"
+          curl --fail --silent http://127.0.0.1:30281/ | grep -q 'PROJECT NIGHTFALL'
+          curl --fail --silent http://127.0.0.1:30281/game.js | grep -q 'WebSocket'
+          curl --fail --silent http://127.0.0.1:30281/style.css | grep -q 'mode-selection'

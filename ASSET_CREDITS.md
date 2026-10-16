@@ -16,6 +16,12 @@ The Project Nightfall source and its rendering systems are separate from the cre
 - GLB mirrored in https://github.com/mars-tw/storm-apocalypse
 - Temporary testing asset; not an acceptable substitute for the final realistic infected artwork.
 
+## Environmental PBR textures
+
+- **ambientCG** (Creative Commons CC0 1.0) materials Asphalt031, Bricks097, Concrete048: https://ambientcg.com/
+- Optimized WebP maps mirrored in https://github.com/cktang88/3d-fps and integrity-verified during game builds.
+- Included color, OpenGL normal, and roughness images; tiled across the Nightfall environment.
+
 ## Adobe Mixamo
 
 Mixamo is a possible future source of additional game animations after an Adobe ID login and properly managed licensing; the current Nightfall build does not yet incorporate assets directly downloaded through the user's Mixamo account.

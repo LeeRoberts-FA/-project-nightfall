@@ -30,3 +30,9 @@ Choose **Titan Raid** or **Blackwater Outbreak**, then set Recruit, Veteran, or 
 Run `npm test` to execute WebSocket protocol / multiplayer checks and the live mode smoke test. The solo smoke test independently connects to the actual local Node server, starts Outbreak on Nightmare and confirms wave/difficulty metadata. It then ensures a second socket cannot join a solo session and checks a two-user co-op match on Recruit. This source is for quality assurance; do not expose test controls or artificial player substitutes to users.
 
 **Deployment caution:** GitHub commits do not guarantee the production version changed. Confirm Render's latest deployed commit is equal to or newer than the current main branch before testing the public URL. The Handshake external-device test still requires two independent real players.
+
+## 1.3 — Quarantine release
+
+Keeps the authoritative Node/WebSocket game and both operations. Adds a stable camera independent of targeting, standing-pose-normalized BAMEN rigged characters, material-based infected variants, a credited M4A1 and destroyed-car model, PBR street surfaces, architectural dressing, rain, shadows, health feedback, boss phases, explicit aim assist, 30-round magazines, automatic/manual reload, synthesized optional gunfire, in-game exit and correct mission result text. Menu key art is separate from gameplay rendering.
+
+`npm test` now runs full Recruit missions against the same authoritative combat tick, collision checks and independent WebSocket movement/ammunition replication. CI captures mobile and desktop combat, checks actual animated bounds and movement, and saves screenshots. These checks do not replace the final Handshake test with two real people on separate physical devices.

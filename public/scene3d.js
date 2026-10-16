@@ -21,8 +21,8 @@ export class NightfallScene {
     this.entities=new Map();this.models={};this.effects=[];this.materials=new Map();this.propSlots=[];
     this.loader=new GLTFLoader();this.tick=0;this.lastMode='';this.cameraAt=new THREE.Vector3();
     this.geo={box:new THREE.BoxGeometry(1,1,1),sphere:new THREE.SphereGeometry(1,18,12),cyl:new THREE.CylinderGeometry(.5,.5,1,12)};
-    this.scene.add(new THREE.HemisphereLight(0xb6cddc,0x36332e,2.0));
-    const sun=this.sun=new THREE.DirectionalLight(0xc7d5d7,2.7);sun.position.set(-25,38,18);sun.castShadow=true;
+    this.scene.add(new THREE.HemisphereLight(0xa0bdce,0x282d2d,1.35));
+    const sun=this.sun=new THREE.DirectionalLight(0xb0c8d9,1.9);sun.position.set(-25,38,18);sun.castShadow=true;
     sun.shadow.mapSize.set(1024,1024);Object.assign(sun.shadow.camera,{left:-23,right:23,top:23,bottom:-23,near:.1,far:95});sun.shadow.bias=-.0007;sun.shadow.normalBias=.025;this.scene.add(sun,sun.target);
     this.flash=new THREE.PointLight(0xffbf71,0,5,2);this.scene.add(this.flash);
     this.setupTextures();this.buildWorld();
@@ -77,12 +77,15 @@ export class NightfallScene {
     // Contact shadows retain grounding on devices with reduced shadow quality.
     const shadow=new THREE.Mesh(new THREE.CircleGeometry(boss?1.8:.45,20),new THREE.MeshBasicMaterial({color:0x000000,transparent:true,opacity:.23,depthWrite:false}));shadow.rotation.x=-Math.PI/2;shadow.position.y=.02;obj.add(shadow);entry.shadow=shadow;this.attachModel(entry);return entry}
   attachModel(entry){const asset=this.models.survivor;if(!asset||entry.model)return;
-    const model=cloneSkinned(asset.scene);const box=new THREE.Box3().setFromObject(model);const dims=box.getSize(new THREE.Vector3());const factor=1.82/Math.max(.01,dims.y);model.scale.setScalar(factor);const center=box.getCenter(new THREE.Vector3());model.position.set(-center.x*factor,-box.min.y*factor,-center.z*factor);entry.obj.add(model);entry.model=model;
+    const model=cloneSkinned(asset.scene);
+    // The distributed GLB is saved prone. Measure the evaluated standing skeleton, never its bind pose.
+    const reference=new THREE.AnimationMixer(model);reference.clipAction(asset.animations.find(c=>c.name==='idle')||asset.animations[0]).play();reference.update(.05);model.updateMatrixWorld(true);model.traverse(n=>{if(n.isSkinnedMesh){n.skeleton.update();n.computeBoundingBox()}});
+    const box=new THREE.Box3().setFromObject(model);const dims=box.getSize(new THREE.Vector3());const factor=1.82/Math.max(.01,dims.y);model.scale.setScalar(factor);const center=box.getCenter(new THREE.Vector3());model.position.set(-center.x*factor,-box.min.y*factor,-center.z*factor);entry.obj.add(model);entry.model=model;reference.stopAllAction();
     const enemy=entry.type==='zombie',bloater=entry.kind==='bloater';entry.obj.scale.setScalar(entry.boss?2.6:bloater?1.45:1);
     model.traverse(n=>{if(!n.isMesh)return;n.castShadow=true;n.receiveShadow=true;const apply=source=>{const m=source.clone();m.side=THREE.FrontSide;m.color.multiplyScalar(2.0);m.roughness=Math.max(.45,m.roughness);if(/fabric|clothes/i.test(m.name)){m.map=this.fabric;m.color.set(enemy?entry.kind==='runner'?0x68534a:0x6d7663:entry.kind==='medic'?0x5b7c69:entry.kind==='heavy'?0x5b6978:0x8c947c);m.roughness=.95;}if(enemy&&/flesh/i.test(m.name))m.color.set(entry.kind==='spitter'?0x94a06b:0x9d9b87);if(enemy&&/armor/i.test(m.name))m.color.set(0x3d4238);return m};n.material=Array.isArray(n.material)?n.material.map(apply):apply(n.material)});
     entry.mixer=new THREE.AnimationMixer(model);const clips=asset.animations;const clip=(name,fallback)=>clips.find(c=>c.name===name)||clips.find(c=>c.name===fallback)||clips[0];
-    entry.actions={idle:entry.mixer.clipAction(clip(enemy?'downed':'aim_idle','idle')),move:entry.mixer.clipAction(clip(enemy?'run':'aim_run','walk')),attack:entry.mixer.clipAction(clip(enemy?'melee':'aim_idle','idle'))};
-    entry.activeMotion=entry.actions.idle;entry.activeMotion.play();
+    entry.actions={idle:entry.mixer.clipAction(clip(enemy?'ready_idle':'aim_idle','idle')),move:entry.mixer.clipAction(clip(enemy?'run':'aim_run','walk')),attack:entry.mixer.clipAction(clip(enemy?'melee':'aim_idle','idle'))};
+    entry.activeMotion=entry.actions.idle;entry.activeMotion.play();entry.mixer.update(.05);model.updateMatrixWorld(true);
     if(enemy){entry.actions.move.timeScale=entry.kind==='runner'?1.35:.55;const wounds=this.mat(entry.kind==='spitter'?0x79883b:0x633c37,0,.95);for(let i=0;i<7;i++){const growth=new THREE.Mesh(this.geo.sphere,wounds);growth.position.set(Math.sin(i*2.4)*.24,.9+i*.11,.20+Math.cos(i)*.06);growth.scale.set(.075+(i%3)*.025,.09,.065);entry.obj.add(growth)}if(bloater||entry.boss){for(let i=0;i<8;i++){let tumor=this.mesh(entry.obj,'sphere',0x656348,[Math.sin(i*3)*.35,1+i*.08,Math.cos(i*2)*.22],[.19,.21,.16]);tumor.rotation.z=i*.4}}}
     else if(this.models.rifle){const weapon=this.models.rifle.scene.clone(true);const wb=new THREE.Box3().setFromObject(weapon),ws=wb.getSize(new THREE.Vector3()),sc=.88/Math.max(ws.x,ws.y,ws.z);weapon.scale.setScalar(sc);const wc=wb.getCenter(new THREE.Vector3());weapon.position.set(.22-wc.x*sc,1.18-wc.y*sc,.35-wc.z*sc);weapon.rotation.y=Math.PI;entry.obj.add(weapon);entry.weapon=weapon;}
     entry.assetSizing={originalHeight:dims.y,originalDimensions:dims.toArray(),scale:factor};
@@ -107,7 +110,7 @@ export class NightfallScene {
     const a=this.rainGeo.attributes.position;for(let i=0;i<a.count;i++){a.array[i*3+1]-=delta*13;if(a.array[i*3+1]<0)a.array[i*3+1]=18}a.needsUpdate=true;
     this.renderer.render(this.scene,this.camera);
   }
-  debugActor(id){const e=this.entities.get('p'+id);if(!e?.model)return null;const b=new THREE.Box3().setFromObject(e.obj);return {size:b.getSize(new THREE.Vector3()).toArray(),root:e.obj.position.toArray(),modelPosition:e.model.position.toArray(),source:e.assetSizing}}
+  debugActor(id){const e=this.entities.get('p'+id);if(!e?.model)return null;e.obj.updateMatrixWorld(true);e.model.traverse(n=>{if(n.isSkinnedMesh){n.skeleton.update();n.computeBoundingBox()}});const b=new THREE.Box3().setFromObject(e.obj);return {size:b.getSize(new THREE.Vector3()).toArray(),center:b.getCenter(new THREE.Vector3()).toArray(),feet:b.min.clone().project(this.camera).toArray(),head:b.max.clone().project(this.camera).toArray(),root:e.obj.position.toArray(),modelPosition:e.model.position.toArray(),source:e.assetSizing}}
   resize(){const w=this.canvas.clientWidth,h=this.canvas.clientHeight;if(w&&h&&(w!==this.width||h!==this.height)){this.renderer.setSize(w,h,false);this.camera.aspect=w/h;this.camera.updateProjectionMatrix();this.width=w;this.height=h}}
   dispose(){this.renderer.dispose()}
 }

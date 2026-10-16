@@ -1,3 +1,6 @@
 node_modules/
 .env
 .DS_Store
+
+# Downloaded and hash-verified licensed 3D models, assembled during deploy
+public/models/*.glb

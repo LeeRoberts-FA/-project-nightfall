@@ -20,3 +20,18 @@
 .enlist::before{content:"OPERATOR TERMINAL · SECURE CONNECTION";display:block;font-size:9px;letter-spacing:2px;color:#88ddeb;margin-bottom:14px}
 .roomcode{color:#f7d28a;text-shadow:0 0 32px #f2ae5755}
 @media(max-width:850px){.hero{min-height:0}.mission-art{height:175px;margin-top:20px}.art-titan{font-size:116px}.art-figure{font-size:115px}#home::after{font-size:44px}.training-desc{font-size:11px}}
+
+
+.mode-selection{margin-top:18px;padding:15px;border:1px solid #39586a;background:linear-gradient(130deg,#0b2232,#122a36);border-radius:6px}
+.mode-label{font-size:10px;font-weight:900;letter-spacing:2px;color:#9bc6ce;margin:8px 0 10px}
+.mode-options{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:17px}
+.mode-option{min-height:85px;display:flex;flex-direction:column;justify-content:center;gap:5px;text-align:left;background:#0a1c2b;border:1px solid #466577;color:#cadbe9;padding:12px;border-radius:4px}
+.mode-option b{font-size:12px;letter-spacing:.3px}.mode-option small{line-height:1.35;color:#9fb7c2;font-size:10px}
+.mode-option.active{background:linear-gradient(120deg,#294b45,#153b49);border:2px solid #a1e7b8;color:#eafff5;box-shadow:0 0 18px #8debb51a}
+.mode-option[data-mission="outbreak"].active{border-color:#d8ba79;background:linear-gradient(120deg,#463d29,#1b302d)}
+.difficulty-options{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.difficulty{background:#0b1923;border:1px solid #3b5264;color:#c7d7de;padding:10px 4px;font-size:10px;font-weight:900;letter-spacing:.5px;border-radius:4px}
+.difficulty small{display:block;font-weight:400;font-size:9px;letter-spacing:0;margin-top:4px;color:#a0b7c1}
+.difficulty.active{background:#42553c;border-color:#e2d48a;color:#fff}
+.difficulty[data-difficulty="nightmare"].active{background:#643540;border-color:#ff6a7a}
+@media(max-width:480px){.mode-options{grid-template-columns:1fr 1fr}.mode-option{min-height:105px;padding:8px}.mode-option b{font-size:10px}.difficulty{font-size:9px}}

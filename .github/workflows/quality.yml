@@ -21,7 +21,7 @@ jobs:
         run: |
           node --check server.js
           node --check public/game.js
-          node --check public/scene3d.js
+          node --input-type=module --check < public/scene3d.js
           for file in tests/*.test.js; do node --check "$file"; done
       - name: Game and network integration tests
         run: npm test

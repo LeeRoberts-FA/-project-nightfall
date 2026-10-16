@@ -24,7 +24,7 @@ const result=await page.evaluate(()=>{
 const c=document.querySelector('#combat3d'),hud=document.getElementById('wave');
 return {threeCanvasPresent:!!c,canvasWidth:c?.width||0,canvasHeight:c?.height||0,webglSupported:!!document.createElement('canvas').getContext('webgl'),wave:hud?.textContent,health:document.querySelector('#health')?.textContent,visible:!document.getElementById('game').classList.contains('hidden'),visual:window.__nightfallVisualReport?.()||null};
 });
-await page.evaluate(()=>window.scrollTo(0,0));const preview=await page.screenshot({type:'jpeg',quality:42,timeout:20000});
+await page.evaluate(()=>window.scrollTo(0,0));const preview=await page.screenshot({type:'jpeg',quality:80,timeout:20000});
 fs.mkdirSync('test-results',{recursive:true});fs.writeFileSync(path.join('test-results','mobile-combat.jpg'),preview);const report={url,...result,console:logs.slice(0,12),pageErrors:failures,requestsFailed:failedRequests.slice(0,12),previewBytes:preview.length};fs.writeFileSync(path.join('test-results','mobile-report.json'),JSON.stringify(report,null,2));process.stdout.write('NIGHTFALL_VISUAL_REPORT:'+JSON.stringify(report)+'\n');
 if(!result.visible||!result.threeCanvasPresent||result.canvasWidth<100||result.canvasHeight<100)throw Error('3D combat canvas did not initialize with a usable size');if(!result.visual?.loadedCharacters?.includes('survivor')||!result.visual?.loadedCharacters?.includes('zombie')||result.visual.displayedCharacterModels<2)throw Error('3D character assets did not load and replace placeholder figures');if(!result.visual.playerVisible||Math.abs(result.visual.playerProjected?.x??99)>.75||Math.abs(result.visual.playerProjected?.y??99)>.75)throw Error('Playable character model not framed in on-screen camera');if(result.visual.drawCalls>450)throw Error('Mobile draw-call budget exceeded: '+result.visual.drawCalls);const bounds=result.visual.actorGeometry;if(!bounds||bounds.size[1]<1.5||bounds.size[1]>2.4||bounds.size[0]>2.5||bounds.head[1]>1||bounds.feet[1]<-1)throw Error('Animated soldier proportions or head-to-feet framing failed: '+JSON.stringify(bounds));if(bounds.head[1]-bounds.feet[1]<.24)throw Error('Character occupies too little screen height to read its details');if(!result.visual.pbrTexturesReady)throw Error('PBR surface textures did not load in browser');
 await page.keyboard.down('w');await page.waitForTimeout(600);await page.keyboard.up('w');
@@ -46,6 +46,24 @@ await page.screenshot({path:'test-results/landscape-combat.jpg',type:'jpeg',qual
 await page.setViewportSize({width:1440,height:900});await page.waitForTimeout(300);await page.screenshot({path:'test-results/desktop-combat.jpg',type:'jpeg',quality:80});
 await page.locator('#exitGame').click();await page.screenshot({path:'test-results/desktop-menu.jpg',type:'jpeg',quality:80});
 if(await page.locator('#home').evaluate(el=>el.scrollWidth>el.clientWidth+2))throw Error('Menu has horizontal overflow');
+// Join from a separate browser context and verify the same moving operative appears in both.
+await page.locator('#name').fill('QA HOST');await page.locator('#create').click();
+await page.waitForFunction(()=>!document.getElementById('lobby').classList.contains('hidden'));
+const code=await page.locator('#roomcode').textContent();
+const guestContext=await browser.newContext({viewport:{width:1280,height:800}}),guest=await guestContext.newPage();
+guest.on('pageerror',err=>failures.push('Guest: '+err.message));
+await guest.goto(url,{waitUntil:'domcontentloaded'});
+await guest.waitForFunction(()=>document.querySelector('#status')?.textContent?.includes('ONLINE')&&document.querySelector('#renderStatus')?.dataset.ready==='true',null,{timeout:30000});
+await guest.locator('#name').fill('QA GUEST');await guest.locator('#code').fill(code);await guest.locator('#join').click();
+await page.waitForFunction(()=>document.querySelector('#count')?.textContent==='2/4');
+await page.locator('#start').click();
+await guest.waitForFunction(()=>window.__nightfallVisualReport().replicatedPlayers.length===2&&window.__nightfallVisualReport().renderer==='active');
+const host=await page.evaluate(()=>window.__nightfallVisualReport()),hostStart=host.replicatedPlayers.find(p=>p.id===host.playerId);
+await page.keyboard.down('d');await page.waitForTimeout(500);await page.keyboard.up('d');
+await guest.waitForFunction(({id,x})=>window.__nightfallVisualReport().replicatedPlayers.some(p=>p.id===id&&p.x>x+25),{id:host.playerId,x:hostStart.x},{timeout:10000});
+await guest.screenshot({path:'test-results/coop-guest.jpg',type:'jpeg',quality:80});
+console.log('NIGHTFALL_COOP_BROWSER: two isolated contexts joined, deployed and replicated host movement');
+await guestContext.close();
 if(failures.length)throw Error('Browser JS exceptions: '+failures.join('; '));
 if(logs.some(x=>/asset failed|3d frame error|3d initialization|failed to load resource|module/i.test(x)))throw Error('3D renderer/asset load error: '+logs.join('; '));
 }finally{await browser.close()}

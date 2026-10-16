@@ -4,6 +4,8 @@ const fs=require('node:fs');const path=require('node:path');const {chromium}=req
 const url=process.env.NIGHTFALL_URL||'http://127.0.0.1:30281';
 const browser=await chromium.launch({headless:true,args:['--use-gl=angle','--use-angle=swiftshader','--enable-webgl','--no-sandbox','--disable-dev-shm-usage']});
 const failures=[],logs=[],failedRequests=[];let guestPage=null;
+async function waitNetwork(p,predicate,label){let last;for(let n=0;n<100;n++){last=await p.evaluate(()=>window.__nightfallNetworkReport());if(predicate(last))return last;if(n%20===0)console.log('NIGHTFALL_NETWORK_WAIT:'+label+':'+JSON.stringify(last));await new Promise(resolve=>setTimeout(resolve,100))}throw Error(label+': '+JSON.stringify(last))}
+
 const context=await browser.newContext({viewport:{width:390,height:844},deviceScaleFactor:1,isMobile:true,hasTouch:true});
 const page=await context.newPage();
 page.on('pageerror',err=>failures.push(err.message));
@@ -57,16 +59,16 @@ await guest.waitForFunction(()=>document.querySelector('#status')?.textContent?.
 await guest.locator('#name').fill('QA GUEST');await guest.locator('#code').fill(code);await guest.locator('#join').click();
 await page.waitForFunction(()=>document.querySelector('#count')?.textContent==='2/4');
 await page.locator('#start').click();
-await guest.bringToFront();await guest.waitForFunction(()=>window.__nightfallNetworkReport().players.length===2&&window.__nightfallNetworkReport().phase==='game',null,{polling:100,timeout:30000});
+await guest.bringToFront();await waitNetwork(guest,report=>report.players.length===2&&report.phase==='game','guest deployment');
 const host=await page.evaluate(()=>window.__nightfallNetworkReport()),hostStart=host.players.find(p=>p.id===host.playerId);await page.bringToFront();
 await page.keyboard.down('d');await page.waitForTimeout(500);await page.keyboard.up('d');
-await guest.waitForFunction(({id,x})=>window.__nightfallNetworkReport().players.some(p=>p.id===id&&p.x>x+25),{id:host.playerId,x:hostStart.x},{polling:100,timeout:15000});
+await waitNetwork(guest,report=>report.players.some(p=>p.id===host.playerId&&p.x>hostStart.x+25),'host movement on guest');
 await guest.bringToFront();await guest.screenshot({path:'test-results/coop-guest.jpg',type:'jpeg',quality:80});
 console.log('NIGHTFALL_COOP_BROWSER: two isolated contexts joined, deployed and replicated host movement');
 await guestContext.close();
 if(failures.length)throw Error('Browser JS exceptions: '+failures.join('; '));
 if(logs.some(x=>/asset failed|3d frame error|3d initialization|failed to load resource|module/i.test(x)))throw Error('3D renderer/asset load error: '+logs.join('; '));
 }catch(error){
- for(const [name,p] of [['host',page],['guest',guestPage]]){if(!p)continue;try{const diagnostic=await p.evaluate(()=>({visual:window.__nightfallVisualReport?.(),screens:['home','lobby','game','result'].filter(id=>!document.getElementById(id)?.classList.contains('hidden')),status:document.getElementById('status')?.textContent,toast:document.getElementById('toast')?.textContent,room:document.getElementById('roomcode')?.textContent,count:document.getElementById('count')?.textContent}));console.error('NIGHTFALL_FAILURE_'+name+':'+JSON.stringify({diagnostic,failures,logs}));fs.mkdirSync('test-results',{recursive:true});fs.writeFileSync('test-results/'+name+'-failure.json',JSON.stringify({diagnostic,failures,logs},null,2));await p.screenshot({path:'test-results/'+name+'-failure.jpg',type:'jpeg',quality:70,timeout:10000})}catch(e){console.error('Diagnostic failed:',e.message)}}throw error;
+ for(const [name,p] of [['host',page],['guest',guestPage]]){if(!p)continue;try{const diagnostic=await p.evaluate(()=>({network:window.__nightfallNetworkReport?.(),visual:window.__nightfallVisualReport?.(),screens:['home','lobby','game','result'].filter(id=>!document.getElementById(id)?.classList.contains('hidden')),status:document.getElementById('status')?.textContent,toast:document.getElementById('toast')?.textContent,room:document.getElementById('roomcode')?.textContent,count:document.getElementById('count')?.textContent}));console.error('NIGHTFALL_FAILURE_'+name+':'+JSON.stringify({diagnostic,failures,logs}));fs.mkdirSync('test-results',{recursive:true});fs.writeFileSync('test-results/'+name+'-failure.json',JSON.stringify({diagnostic,failures,logs},null,2));await p.screenshot({path:'test-results/'+name+'-failure.jpg',type:'jpeg',quality:70,timeout:10000})}catch(e){console.error('Diagnostic failed:',e.message)}}throw error;
 }finally{await browser.close()}
 })().catch(e=>{console.error('NIGHTFALL_BROWSER_FAILED:'+e.stack);process.exitCode=1});

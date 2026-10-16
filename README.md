@@ -21,3 +21,12 @@ A **persistent Node.js web server with WebSocket upgrades** is required; static 
 4. Play through waves and boss to verify win/loss screens and upgrade mechanics before submitting the URL to Handshake.
 
 **Release status:** Local tests passed; production deployment and independent external two-device verification are not yet confirmed. Do not submit a URL before verifying both.
+
+
+## 1.2 — Blackwater Outbreak and reproducible QA
+
+Choose **Titan Raid** or **Blackwater Outbreak**, then set Recruit, Veteran, or Nightmare difficulty before creating a squad or beginning solo training. Outbreak features five escalating infected waves and the Harvester boss, including shamblers, runners, ranged spitters and armored bloaters. Difficulty scaling is enforced by the game server and affects enemy health, speed, damage, wave population, and reinforcements.
+
+Run `npm test` to execute WebSocket protocol / multiplayer checks and the live mode smoke test. The solo smoke test independently connects to the actual local Node server, starts Outbreak on Nightmare and confirms wave/difficulty metadata. It then ensures a second socket cannot join a solo session and checks a two-user co-op match on Recruit. This source is for quality assurance; do not expose test controls or artificial player substitutes to users.
+
+**Deployment caution:** GitHub commits do not guarantee the production version changed. Confirm Render's latest deployed commit is equal to or newer than the current main branch before testing the public URL. The Handshake external-device test still requires two independent real players.

@@ -10,11 +10,10 @@ The Project Nightfall source and its rendering systems are separate from the cre
 - Motion library documented by that project: **Quaternius Universal Animation Library** (CC0); some bot walk/jog/crouch clips derive from the **100STYLE** dataset by **Ian Mason, Sebastian Starke and Taku Komura** (CC BY 4.0): https://zenodo.org/records/8127870
 - Integration changes: normalization, runtime scale and Three.js skeletal cloning. Original authors do not endorse Nightfall.
 
-## Infected test character (temporary)
+## Retired temporary infected test character
 
 - **Quaternius — Zombie Apocalypse Kit**, CC0 1.0: https://quaternius.com/packs/zombieapocalypsekit.html
-- GLB mirrored in https://github.com/mars-tw/storm-apocalypse
-- Temporary testing asset; not an acceptable substitute for the final realistic infected artwork.
+- This temporary test asset is no longer downloaded or rendered in release 1.3.
 
 ## Environmental PBR textures
 

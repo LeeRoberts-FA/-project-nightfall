@@ -7,7 +7,7 @@ on:
 permissions:
   contents: read
 jobs:
-  game-validation:
+  local-validation:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -51,19 +51,43 @@ jobs:
           PORT=30281 npm start > /tmp/nightfall-browser-server.log 2>&1 &
           trap 'kill $! 2>/dev/null || true' EXIT
           node tests/browser-smoke.cjs
-      - name: Verify deployed public game after release
-        if: github.ref == 'refs/heads/main'
+      - name: Publish screenshot and diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightfall-local-gameplay
+          path: test-results/
+          if-no-files-found: ignore
+  live-release-validation:
+    if: github.ref == 'refs/heads/main'
+    needs: local-validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install
+        run: npm install
+      - name: Install headless Chromium gameplay tester
+        run: |
+          npm install --no-save playwright
+          npx playwright install --with-deps chromium
+      - name: Verify deployed public game after Render publish
         env:
           NIGHTFALL_URL: https://project-nightfall-lee.onrender.com
           EXPECTED_COMMIT: ${{ github.sha }}
         run: |
-          mv test-results local-test-results
           node - <<'NODE'
           const url=process.env.NIGHTFALL_URL,expected=process.env.EXPECTED_COMMIT;
           (async()=>{
-            for(let n=0;n<100;n++){
-              try { const response=await fetch(url+'/health',{signal:AbortSignal.timeout(10000)});const health=await response.json();
+            for(let n=0;n<240;n++){
+              try {
+                const response=await fetch(url+'/health',{signal:AbortSignal.timeout(10000)});
+                const health=await response.json();
                 if(health.ok && health.commit===expected){console.log('Public release confirmed:',health.version,health.commit);return}
+                console.log('Waiting for Render deploy commit',expected,'current',health?.commit||'none');
               } catch(e) { console.log('Waiting for public service:',e.message) }
               await new Promise(resolve=>setTimeout(resolve,5000));
             }
@@ -71,12 +95,10 @@ jobs:
           })().catch(e=>{console.error(e);process.exitCode=1});
           NODE
           node tests/browser-smoke.cjs
-      - name: Publish screenshot and diagnostics
+      - name: Publish live release screenshots and diagnostics
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: nightfall-iphone-gameplay
-          path: |
-            test-results/
-            local-test-results/
+          name: nightfall-live-gameplay
+          path: test-results/
           if-no-files-found: ignore

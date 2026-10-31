@@ -26,7 +26,7 @@ const result=await page.evaluate(()=>{
 const c=document.querySelector('#combat3d'),hud=document.getElementById('wave');
 return {threeCanvasPresent:!!c,canvasWidth:c?.width||0,canvasHeight:c?.height||0,webglSupported:!!document.createElement('canvas').getContext('webgl'),wave:hud?.textContent,health:document.querySelector('#health')?.textContent,visible:!document.getElementById('game').classList.contains('hidden'),visual:window.__nightfallVisualReport?.()||null};
 });
-const mobileControls=await page.evaluate(()=>{const ids=['moveStick','aimStick','abilityMobile','reloadButton','upgrade','exitGame'];const check=id=>{const el=document.getElementById(id),rect=el?.getBoundingClientRect();return {id,left:rect?.left,top:rect?.top,right:rect?.right,bottom:rect?.bottom,visible:!!(rect&&rect.width>0&&rect.height>0)}};const canvas=document.getElementById('combat3d');return {items:ids.map(check),overflow:document.documentElement.scrollWidth-window.innerWidth,renderScale:canvas?.width/canvas?.clientWidth||0,viewport:{w:window.innerWidth,h:window.innerHeight}}});
+const mobileControls=await page.evaluate(()=>{const ids=['moveStick','aimStick','fireMobile','abilityMobile','reloadButton','upgrade','exitGame'];const check=id=>{const el=document.getElementById(id),rect=el?.getBoundingClientRect();return {id,left:rect?.left,top:rect?.top,right:rect?.right,bottom:rect?.bottom,visible:!!(rect&&rect.width>0&&rect.height>0)}};const canvas=document.getElementById('combat3d');return {items:ids.map(check),overflow:document.documentElement.scrollWidth-window.innerWidth,renderScale:canvas?.width/canvas?.clientWidth||0,viewport:{w:window.innerWidth,h:window.innerHeight}}});
 console.log('NIGHTFALL_MOBILE_LAYOUT:'+JSON.stringify(mobileControls));
 for(const control of mobileControls.items){if(!control.visible||control.left< -2||control.right>mobileControls.viewport.w+2||control.top< -2||control.bottom>mobileControls.viewport.h+2)throw Error('Mobile combat control inaccessible: '+JSON.stringify(control))}
 if(mobileControls.overflow>2)throw Error('Mobile layout overflows horizontally by '+mobileControls.overflow+' px');
@@ -37,7 +37,47 @@ if(!result.visible||!result.threeCanvasPresent||result.canvasWidth<100||result.c
 await page.keyboard.down('w');await page.waitForTimeout(600);await page.keyboard.up('w');
 const moved=await page.evaluate(()=>window.__nightfallVisualReport?.().playerWorld);
 if(!moved||Math.hypot(moved[0]-result.visual.playerWorld[0],moved[2]-result.visual.playerWorld[2])<.2)throw Error('Keyboard movement did not move the networked character');
-const beforeStick=await page.evaluate(()=>window.__nightfallVisualReport().playerWorld);const stick=await page.locator('#moveStick').boundingBox();await page.mouse.move(stick.x+stick.width/2,stick.y+stick.height/2);await page.mouse.down();await page.mouse.move(stick.x+stick.width*.85,stick.y+stick.height/2);await page.waitForTimeout(400);await page.mouse.up();const afterStick=await page.evaluate(()=>window.__nightfallVisualReport().playerWorld);if(Math.hypot(afterStick[0]-beforeStick[0],afterStick[2]-beforeStick[2])<.2)throw Error('Touch joystick handler failed to move the character');
+// Real browser Touch Events instead of mouse simulation: ensures transparent
+// render overlay cannot steal iPhone thumbstick input.
+const cdp=await context.newCDPSession(page);
+async function touch(type,id,x,y){return cdp.send('Input.dispatchTouchEvent',{type,touchPoints:type==='touchEnd'?[]:[{x:Math.round(x),y:Math.round(y),id,radiusX:5,radiusY:5,force:.8}]})}
+const beforeStick=await page.evaluate(()=>window.__nightfallVisualReport().playerWorld);
+const stick=await page.locator('#moveStick').boundingBox(),sx=stick.x+stick.width*.5,sy=stick.y+stick.height*.5;
+const hit=await page.evaluate(([x,y])=>document.elementFromPoint(x,y)?.closest('#moveStick')?.id||'no-stick-hit',[sx,sy]);
+if(hit!=='moveStick')throw Error('Touch control obstructed by overlay: '+hit);
+await touch('touchStart',101,sx,sy);
+for(let k=1;k<=4;k++){await touch('touchMove',101,sx+stick.width*.08*k,sy);await page.waitForTimeout(75)}
+let controls=await page.evaluate(()=>window.__nightfallControlsReport());
+if(!controls.move.active||controls.move.x<.35)throw Error('Native iPhone touch did not activate movement input: '+JSON.stringify(controls));
+await page.waitForTimeout(520);
+await touch('touchEnd',101,sx,sy);
+await page.waitForTimeout(160);
+const afterStick=await page.evaluate(()=>window.__nightfallVisualReport().playerWorld);
+if(Math.hypot(afterStick[0]-beforeStick[0],afterStick[2]-beforeStick[2])<6)throw Error('Real native-touch drag did not move authoritative player: '+JSON.stringify({beforeStick,afterStick}));
+controls=await page.evaluate(()=>window.__nightfallControlsReport());
+if(controls.move.active||Math.abs(controls.move.x)>.01)throw Error('Left thumbstick did not release after touchend');
+console.log('NIGHTFALL_REAL_TOUCH_MOVEMENT:'+JSON.stringify({from:beforeStick,to:afterStick}));
+
+// Aim assist must NOT fire without a real user action.
+await page.waitForTimeout(230);
+const ammoIdle=await page.evaluate(()=>window.__nightfallNetworkReport().players.find(p=>p.id===window.__nightfallNetworkReport().playerId)?.ammo);
+await page.waitForTimeout(420);
+const ammoLater=await page.evaluate(()=>window.__nightfallNetworkReport().players.find(p=>p.id===window.__nightfallNetworkReport().playerId)?.ammo);
+if(ammoLater!==ammoIdle)throw Error('Aim assist still fires automatically without player action: '+ammoIdle+' vs '+ammoLater);
+const aimStick=await page.locator('#aimStick').boundingBox(),ax=aimStick.x+aimStick.width*.5,ay=aimStick.y+aimStick.height*.5;
+await touch('touchStart',102,ax,ay);await touch('touchMove',102,ax+aimStick.width*.35,ay);
+await page.waitForTimeout(200);
+const aiming=await page.evaluate(()=>window.__nightfallControlsReport());
+if(!aiming.aim.active||aiming.aim.x<.35)throw Error('Native right-joystick aim touch did not register: '+JSON.stringify(aiming));
+await touch('touchEnd',102,ax,ay);
+const button=await page.locator('#fireMobile').boundingBox();
+await touch('touchStart',103,button.x+button.width*.5,button.y+button.height*.5);
+await page.waitForTimeout(220);
+if(!(await page.evaluate(()=>window.__nightfallControlsReport().holdFire)))throw Error('Dedicated FIRE button did not register native touch');
+await touch('touchEnd',103,button.x,button.y);
+await page.waitForTimeout(100);
+if(await page.evaluate(()=>window.__nightfallControlsReport().holdFire))throw Error('FIRE remained stuck after release');
+console.log('NIGHTFALL_TOUCH_COMBAT: native drag movement, right-stick aim and hold-to-fire verified; idle auto-fire disabled');
 // A quarter turn must change the camera without changing the player's position.
 await page.locator('#assistButton').click();
 const beforeTurn=await page.evaluate(()=>window.__nightfallVisualReport());
@@ -48,7 +88,7 @@ if(Math.hypot(afterTurn.cameraPosition[0]-beforeTurn.cameraPosition[0],afterTurn
 await page.locator('#cameraLeft').click();await page.waitForTimeout(300);
 // Landscape touch controls and HUD must remain reachable.
 await page.setViewportSize({width:844,height:390});await page.waitForTimeout(350);
-for(const id of ['exitGame','reloadButton','cameraRight','abilityMobile']){const b=await page.locator('#'+id).boundingBox();if(!b||b.y<0||b.y+b.height>390)throw Error('Landscape control outside viewport: '+id)}
+for(const id of ['exitGame','reloadButton','cameraRight','abilityMobile','fireMobile']){const b=await page.locator('#'+id).boundingBox();if(!b||b.y<0||b.y+b.height>390)throw Error('Landscape control outside viewport: '+id)}
 await page.screenshot({path:'test-results/landscape-combat.jpg',type:'jpeg',quality:80});
 await page.setViewportSize({width:1440,height:900});await page.waitForTimeout(300);await page.screenshot({path:'test-results/desktop-combat.jpg',type:'jpeg',quality:80});
 await page.locator('#exitGame').click();await page.screenshot({path:'test-results/desktop-menu.jpg',type:'jpeg',quality:80});

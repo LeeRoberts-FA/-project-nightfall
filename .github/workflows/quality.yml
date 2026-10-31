@@ -12,6 +12,8 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -51,8 +53,22 @@ jobs:
           PORT=30281 npm start > /tmp/nightfall-browser-server.log 2>&1 &
           trap 'kill $! 2>/dev/null || true' EXIT
           node tests/browser-smoke.cjs
-      - name: Verify deployed public game after release
+      - name: Detect whether this commit changes the deployable game
+        id: release_scope
         if: github.ref == 'refs/heads/main'
+        shell: bash
+        run: |
+          files="$(git diff --name-only HEAD^ HEAD || true)"
+          printf '%s\n' "$files"
+          if printf '%s\n' "$files" | grep -Eq '^(server\.js|render\.yaml|package\.json|package-lock\.json|public/|scripts/install-assets\.cjs)'; then
+            echo "release_required=true" >> "$GITHUB_OUTPUT"
+            echo "Production release check required for game changes."
+          else
+            echo "release_required=false" >> "$GITHUB_OUTPUT"
+            echo "Docs, workflow, or agent configuration only: skip Render commit matching."
+          fi
+      - name: Verify deployed public game after release
+        if: github.ref == 'refs/heads/main' && steps.release_scope.outputs.release_required == 'true'
         env:
           NIGHTFALL_URL: https://project-nightfall-lee.onrender.com
           EXPECTED_COMMIT: ${{ github.sha }}

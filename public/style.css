@@ -66,3 +66,54 @@
 .invite-link{overflow-wrap:anywhere;user-select:text;word-break:break-word;color:#a6e8e6;font:12px/1.6 ui-monospace,SFMono-Regular,monospace;background:#071a20;border:1px dashed #436d71;border-radius:4px;padding:11px;text-align:center;margin:10px 0 0}
 .invite-link:focus{outline:2px solid #9bdccb;outline-offset:2px}
 @media(max-width:520px){.invite-banner{padding:12px}.invite-link{font-size:11px}.lobby .roomcode{font-size:clamp(32px,9vw,49px)}}
+
+
+/* Final responsive combat sizing: preserve all controls within phone and desktop viewports. */
+.in-combat #game{height:calc(100dvh - 49px);min-height:0;display:flex;flex-direction:column}
+.in-combat .gamehead,.in-combat .hud,.in-combat .combat-tools{flex:0 0 auto}
+.in-combat .playfield{flex:1 1 auto;height:auto;min-height:220px}
+.in-combat .gamehead{flex-wrap:nowrap}
+.in-combat .gamehead span{white-space:nowrap}
+.in-combat .combat-tools button{min-height:36px}
+.in-combat .camera-controls button{min-width:44px;min-height:44px}
+.in-combat .hud{min-width:0}
+.in-combat .hud>div{min-width:0}
+.in-combat .hud button{touch-action:manipulation}
+.in-combat #game button{touch-action:manipulation}
+.in-combat .playfield{overscroll-behavior:contain}
+@media(max-width:850px){
+  .in-combat #game{height:calc(100dvh - 49px - env(safe-area-inset-bottom,0px))}
+  .in-combat .playfield{height:auto;min-height:160px}
+  .in-combat .gamehead{gap:6px;justify-content:space-between;padding:7px 5px;font-size:clamp(8px,2vw,10px)}
+  .in-combat .gamehead #hostiles{display:none}
+  .in-combat .gamehead button{min-width:40px;min-height:34px}
+  .in-combat .combat-tools{flex-wrap:nowrap;justify-content:space-between}
+  .in-combat .combat-tools button{min-height:40px;font-size:9px;padding:7px 6px;letter-spacing:0}
+  .in-combat .ammo-label{white-space:nowrap}
+  .in-combat .camera-controls{left:8px;top:44px}
+  .in-combat .camera-controls button{min-width:44px;min-height:44px}
+  .in-combat .hud{gap:5px 10px}
+  .in-combat .hud button{min-height:34px}
+}
+@media(max-width:420px){
+  .hero{min-height:335px}
+  .hero h1{font-size:clamp(38px,10.6vw,48px)}
+  .hero p{font-size:12px}
+  .art-overlay{font-size:8px}
+  .in-combat .combat-tools{gap:3px}
+  .in-combat .combat-tools button{font-size:8px;padding:6px 4px}
+  .in-combat .combat-tools .ammo-label b{font-size:11px;margin-left:3px}
+  .in-combat .hud{font-size:10px}
+  .in-combat .hud button{padding:5px}
+}
+@media(max-height:560px) and (orientation:landscape){
+  .in-combat #game{height:calc(100dvh - env(safe-area-inset-bottom,0px))}
+  .in-combat .gamehead{padding:3px 8px}
+  .in-combat .playfield{min-height:120px;height:auto}
+  .in-combat .hud{padding:4px 8px}
+  .in-combat .combat-tools{padding:3px 8px}
+  .in-combat .combat-tools button{min-height:30px}
+  .in-combat .camera-controls{top:35px}
+  .in-combat .camera-controls button{min-height:34px;min-width:38px}
+  .in-combat .hud button{min-height:28px}
+}

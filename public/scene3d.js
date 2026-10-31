@@ -9,8 +9,9 @@ const mix = (a,b,t) => a+(b-a)*t;
 export class NightfallScene {
   constructor(canvas) {
     this.canvas=canvas;
+    this.mobileProfile=window.matchMedia('(pointer: coarse)').matches && Math.min(window.innerWidth,window.innerHeight)<900;
     this.renderer=new THREE.WebGLRenderer({canvas,antialias:true,powerPreference:'high-performance'});
-    this.renderer.setPixelRatio(Math.min(devicePixelRatio||1,1.5));
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,this.mobileProfile?1.25:1.5));
     this.renderer.outputColorSpace=THREE.SRGBColorSpace;
     this.renderer.toneMapping=THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure=1.22;
@@ -24,7 +25,7 @@ export class NightfallScene {
     this.geo={box:new THREE.BoxGeometry(1,1,1),sphere:new THREE.SphereGeometry(1,18,12),cyl:new THREE.CylinderGeometry(.5,.5,1,12)};
     this.scene.add(new THREE.HemisphereLight(0xa0bdce,0x282d2d,1.35));
     const sun=this.sun=new THREE.DirectionalLight(0xb0c8d9,1.9);sun.position.set(-25,38,18);sun.castShadow=true;
-    sun.shadow.mapSize.set(1024,1024);Object.assign(sun.shadow.camera,{left:-23,right:23,top:23,bottom:-23,near:.1,far:95});sun.shadow.bias=-.0007;sun.shadow.normalBias=.025;this.scene.add(sun,sun.target);
+    sun.shadow.mapSize.set(this.mobileProfile?512:1024,this.mobileProfile?512:1024);Object.assign(sun.shadow.camera,{left:-23,right:23,top:23,bottom:-23,near:.1,far:95});sun.shadow.bias=-.0007;sun.shadow.normalBias=.025;this.scene.add(sun,sun.target);
     this.flash=new THREE.PointLight(0xffbf71,0,5,2);this.scene.add(this.flash);
     this.setupTextures();this.buildWorld();
     this.ready=this.loadModels();

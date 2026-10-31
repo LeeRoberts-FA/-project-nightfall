@@ -117,3 +117,30 @@
   .in-combat .camera-controls button{min-height:34px;min-width:38px}
   .in-combat .hud button{min-height:28px}
 }
+
+
+/* Touch gameplay correction: the transparent input canvas previously sat ABOVE the
+   position:static .joy-zone, so Safari drags hit the canvas instead of the sticks. */
+.playfield .joy-zone{position:absolute;inset:0;z-index:7;pointer-events:none;touch-action:none}
+.playfield .joy-zone .stick{z-index:2;pointer-events:auto;touch-action:none!important;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;overscroll-behavior:none}
+.playfield .joy-zone .stick div,.playfield .joy-zone .stick small{pointer-events:none}
+.playfield #canvas{z-index:1}
+.fireMobile{display:none}
+@media(max-width:850px){
+  .playfield .joy-zone{display:block}
+  .playfield .stick{width:112px;height:112px;bottom:13px;border-width:3px;border-color:#d9e5b6a6;background:#0d221acb;box-shadow:0 0 0 5px #10251a66,0 2px 16px #0009}
+  .playfield .stick.left{left:12px}
+  .playfield .stick.right{right:12px}
+  .playfield .stick div{width:43px;height:43px;background:#e7e8d4e0;box-shadow:0 0 8px #000a}
+  .playfield .stick small{font-size:9px;bottom:-3px;color:#fff;letter-spacing:1px;text-shadow:0 1px 3px #000}
+  .playfield #fireMobile{display:block;position:absolute;z-index:8;right:30px;bottom:218px;width:66px;height:66px;border:2px solid #efd6a4;background:#a04b35e6;color:white;border-radius:50%;font:bold 12px/1.15 system-ui;box-shadow:0 0 0 5px #23170b73,0 3px 14px #0008;touch-action:none!important;-webkit-user-select:none;user-select:none}
+  .playfield #fireMobile:active,.playfield #fireMobile.firing{background:#f17c42;color:#17150e;box-shadow:0 0 0 7px #f17c4244}
+  .playfield .abilityMobile{right:35px;bottom:142px;z-index:8}
+  .playfield{touch-action:none;overscroll-behavior:contain}
+}
+@media(max-height:560px) and (orientation:landscape){
+  .playfield .stick{width:82px;height:82px;bottom:8px}
+  .playfield .stick div{width:30px;height:30px}
+  .playfield #fireMobile{width:48px;height:48px;bottom:106px;right:23px;font-size:10px}
+  .playfield .abilityMobile{width:43px;height:43px;bottom:100px;right:92px}
+}

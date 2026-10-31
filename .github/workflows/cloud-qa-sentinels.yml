@@ -1,0 +1,76 @@
+name: Nightfall Free Cloud QA Sentinels
+
+# Public repo, standard free hosted runner only.
+# No LLM/API keys, no billable cloud agents, no automatic merges or deployments.
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/cloud-qa-sentinels.yml'
+      - 'scripts/install-assets.cjs'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'ASSET_CREDITS.md'
+  schedule:
+    - cron: '24 11 * * 1'
+
+permissions:
+  contents: read
+
+jobs:
+  release-sentinel:
+    name: Free asset, supply-chain and live-health audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 9
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check package integrity and verified asset download
+        run: npm ci
+      - name: Check source-asset metadata and required credits
+        run: node scripts/cloud-sentinel.cjs
+      - name: Check production package vulnerabilities
+        shell: bash
+        run: |
+          npm audit --omit=dev --audit-level=high --json > audit-report.json || true
+          node - <<'NODE'
+          const fs=require('node:fs');
+          const result=JSON.parse(fs.readFileSync('audit-report.json','utf8'));
+          const counts=result.metadata?.vulnerabilities||{};
+          const note='Production dependencies: '+JSON.stringify(counts);
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,'\n## Dependency vulnerability report\n\n'+note+'\n');
+          console.log(note);
+          if((counts.high||0)+(counts.critical||0)>0)console.log('::warning::Review high or critical vulnerability findings in the job artifact.');
+          NODE
+      - name: Check the publicly reachable gameplay server
+        continue-on-error: true
+        run: |
+          node - <<'NODE'
+          const fs=require('node:fs');
+          (async()=>{
+            let lastError;
+            for(let attempt=0;attempt<4;attempt++){
+              try{
+                const r=await fetch('https://project-nightfall-lee.onrender.com/health',{signal:AbortSignal.timeout(14000)});
+                const j=await r.json();
+                if(!r.ok||!j.ok)throw Error('Unhealthy HTTP response: '+r.status);
+                const msg='Public Nightfall health: OK; deployed commit '+(j.commit||'unknown');
+                fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,'\n## Live game health\n\n'+msg+'\n');
+                console.log(msg);
+                return;
+              }catch(e){lastError=e;await new Promise(resolve=>setTimeout(resolve,4000))}
+            }
+            console.log('::warning::Live health probe unavailable: '+lastError.message);
+          })();
+          NODE
+      - name: Store security diagnostics (review only)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightfall-free-cloud-audit
+          path: audit-report.json
+          if-no-files-found: ignore
+          retention-days: 5

@@ -20,7 +20,7 @@ A **persistent Node.js web server with WebSocket upgrades** is required; static 
 3. On two separate devices/networks, join the same code, deploy, move, shoot, and verify synchronized game state.
 4. Play through waves and boss to verify win/loss screens and upgrade mechanics before submitting the URL to Handshake.
 
-**Release validation:** CI checks combat, two-client networking, and rendered browser gameplay. On the main branch it also waits for the exact commit to become public and repeats browser tests against the deployed URL. Independent verification with two real people on separate physical devices must still be recorded before Handshake submission.
+**Release validation:** CI runs local combat/network/browser checks separately from live-release checks. On the main branch it waits for Render to report the exact commit, then runs browser tests against the deployed URL. Independent verification with two real people on separate physical devices must still be recorded before Handshake submission.
 
 
 ## 1.2 — Blackwater Outbreak and reproducible QA

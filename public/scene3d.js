@@ -22,11 +22,13 @@ export class NightfallScene {
     this.camera=new THREE.PerspectiveCamera(54,1,.08,180);this.cameraYaw=0;
     this.entities=new Map();this.models={};this.effects=[];this.materials=new Map();this.propSlots=[];
     this.loader=new GLTFLoader();this.tick=0;this.lastMode='';this.cameraAt=new THREE.Vector3();
+    this.tmpPos=new THREE.Vector3();this.tmpTarget=new THREE.Vector3();this.tmpDesired=new THREE.Vector3();this.tmpLight=new THREE.Vector3();this.tmpFlash=new THREE.Vector3();
     this.geo={box:new THREE.BoxGeometry(1,1,1),sphere:new THREE.SphereGeometry(1,18,12),cyl:new THREE.CylinderGeometry(.5,.5,1,12)};
     this.scene.add(new THREE.HemisphereLight(0xa0bdce,0x282d2d,1.35));
     const sun=this.sun=new THREE.DirectionalLight(0xb0c8d9,1.9);sun.position.set(-25,38,18);sun.castShadow=true;
     sun.shadow.mapSize.set(this.mobileProfile?512:1024,this.mobileProfile?512:1024);Object.assign(sun.shadow.camera,{left:-23,right:23,top:23,bottom:-23,near:.1,far:95});sun.shadow.bias=-.0007;sun.shadow.normalBias=.025;this.scene.add(sun,sun.target);
     this.flash=new THREE.PointLight(0xffbf71,0,5,2);this.scene.add(this.flash);
+    this.litGlassMaterial=new THREE.MeshStandardMaterial({color:0xe9ac60,emissive:0xff9c40,emissiveIntensity:.65});
     this.setupTextures();this.buildWorld();
     this.ready=this.loadModels();
     this.ray=new THREE.Raycaster();this.ground=new THREE.Plane(Y,0);
@@ -48,7 +50,7 @@ export class NightfallScene {
       for(let i=0;i<9;i++){const x=-39+i*9.8,ht=10+(i*7%5)*2.3;const b=this.mesh(g,'box',0x65665c,[x,ht/2,z+side*3],[9.4,ht,8]);b.material=i%3?this.pbr.bricks:this.pbr.concrete;
         this.mesh(g,'box',0x3b4140,[x,ht+.2,z+side*3],[9.7,.45,8.3]);
         for(let f=0;f<Math.floor(ht/3);f++)for(let j=0;j<4;j++){const wx=x-3.2+j*2.1,wz=z-side*1.12,lit=(i*3+j+f)%11===0;
-          this.mesh(g,'box',0x9c9a8e,[wx,1.8+f*3,wz],[1.4,1.9,.18]);const glass=this.mesh(g,'box',lit?0xd2924d:0x101b22,[wx,1.85+f*3,wz-side*.12],[1.1,1.55,.12],.25);if(lit){glass.material=new THREE.MeshStandardMaterial({color:0xe9ac60,emissive:0xff9c40,emissiveIntensity:.65})}
+          this.mesh(g,'box',0x9c9a8e,[wx,1.8+f*3,wz],[1.4,1.9,.18]);const glass=this.mesh(g,'box',lit?0xd2924d:0x101b22,[wx,1.85+f*3,wz-side*.12],[1.1,1.55,.12],.25);if(lit)glass.material=this.litGlassMaterial;
           this.mesh(g,'box',0x3c4444,[wx,1.85+f*3,wz-side*.2],[1.1,.07,.08]);if((i+j+f)%7===0){let plank=this.mesh(g,'box',0x5e5142,[wx,1.85+f*3,wz-side*.22],[1.8,.22,.09]);plank.rotation.z=.5}
         }
         this.mesh(g,'box',0x192026,[x,1.2,z-side*1.2],[1.7,2.4,.15]);const sig=this.sign(i===4?'BLACKWATER MEDICAL':i%3===0?'EVACUATION ZONE':'QUARANTINE // SECTOR 07',8,.7);sig.position.set(x,3.4,z-side*1.4);if(side>0)sig.rotation.y=Math.PI;g.add(sig);
@@ -106,7 +108,7 @@ export class NightfallScene {
   project(x,y,height=2.2){return new THREE.Vector3(...this.world(x,y)).add(new THREE.Vector3(0,height,0)).project(this.camera)}
   sync(state,myId,aim,delta,localMoving=false){if(!state)return;this.resize();this.tick+=delta;this.lastMode=state.mission;const active=new Set(),me=state.players.find(p=>p.id===myId);
     const actors=[...state.players.map(p=>({...p,key:'p'+p.id,type:'survivor'})),...(state.enemies||[]).map(e=>({...e,key:'e'+e.id,type:'zombie'}))];
-    for(const a of actors){active.add(a.key);let e=this.entities.get(a.key);if(!e){e=this.makeEntity(a.cls||a.kind,a.type,a.boss);this.entities.set(a.key,e)}const pos=new THREE.Vector3(...this.world(a.x,a.y));if(!e.positioned){e.obj.position.copy(pos);e.positioned=true}else e.obj.position.lerp(pos,1-Math.exp(-delta*16));e.obj.visible=a.alive!==false;
+    for(const a of actors){active.add(a.key);let e=this.entities.get(a.key);if(!e){e=this.makeEntity(a.cls||a.kind,a.type,a.boss);this.entities.set(a.key,e)}const wp=this.world(a.x,a.y),pos=this.tmpPos.set(wp[0],wp[1],wp[2]);if(!e.positioned){e.obj.position.copy(pos);e.positioned=true}else e.obj.position.lerp(pos,1-Math.exp(-delta*16));e.obj.visible=a.alive!==false;
       const travel=e.prevX===undefined?0:Math.hypot(a.x-e.prevX,a.y-e.prevY);e.prevX=a.x;e.prevY=a.y;if(travel>.2)e.movingUntil=this.tick+.16;
       const enemy=a.type==='zombie',moving=a.id===myId?localMoving:this.tick<(e.movingUntil||0);const angle=enemy&&me?Math.atan2(me.y-a.y,me.x-a.x):a.id===myId?aim:a.angle??-Math.PI/2;
       let desired=-angle+Math.PI/2;let diff=Math.atan2(Math.sin(desired-e.obj.rotation.y),Math.cos(desired-e.obj.rotation.y));e.obj.rotation.y+=diff*(1-Math.exp(-delta*15));
@@ -115,8 +117,8 @@ export class NightfallScene {
       e.lastHp=a.hp;if(e.weapon&&e.hand){e.obj.updateMatrixWorld(true);e.hand.getWorldPosition(e.handPoint);e.weapon.position.copy(e.obj.worldToLocal(e.handPoint));e.weapon.rotation.x=a.reloading?-.25:0;e.weapon.position.z+=a.firing?Math.sin(this.tick*38)*.018:0;}
     }
     for(const [key,e] of this.entities)if(!active.has(key)){e.deadAt??=this.tick;e.obj.rotation.z=mix(e.obj.rotation.z,-1.45,Math.min(1,delta*8));e.obj.position.y-=delta*.35;if(this.tick-e.deadAt>.55){this.scene.remove(e.obj);e.mixer?.stopAllAction();e.model?.traverse(n=>{if(n.isMesh){for(const m of Array.isArray(n.material)?n.material:[n.material])m.dispose()}});this.entities.delete(key)}}
-    if(me){const pos=new THREE.Vector3(...this.world(me.x,me.y));const portrait=this.camera.aspect<.8;const sy=Math.sin(this.cameraYaw),cy=Math.cos(this.cameraYaw),distance=portrait?6.3:5.1;const target=pos.clone().add(new THREE.Vector3(-sy*2+.25*cy,1.15,-cy*2-.25*sy));const desired=pos.clone().add(new THREE.Vector3(sy*distance+.7*cy,portrait?3.7:3.1,cy*distance-.7*sy));if(!this.cameraReady){this.camera.position.copy(desired);this.cameraAt.copy(target);this.cameraReady=true}else{this.camera.position.lerp(desired,1-Math.exp(-delta*9));this.cameraAt.lerp(target,1-Math.exp(-delta*9))}this.camera.lookAt(this.cameraAt);this.sun.position.set(pos.x-20,35,pos.z+15);this.sun.target.position.copy(pos);this.sun.target.updateMatrixWorld();
-      const p=this.entities.get('p'+myId);this.flash.intensity=me.firing&&Math.sin(this.tick*45)>.3?4:0;if(p)this.flash.position.copy(p.obj.position).add(new THREE.Vector3(Math.cos(aim)*.6,1.25,Math.sin(aim)*.6));
+    if(me){const mw=this.world(me.x,me.y),pos=this.tmpPos.set(mw[0],mw[1],mw[2]);const portrait=this.camera.aspect<.8;const sy=Math.sin(this.cameraYaw),cy=Math.cos(this.cameraYaw),distance=portrait?6.3:5.1;const target=this.tmpTarget.copy(pos).add(this.tmpLight.set(-sy*2+.25*cy,1.15,-cy*2-.25*sy));const desired=this.tmpDesired.copy(pos).add(this.tmpFlash.set(sy*distance+.7*cy,portrait?3.7:3.1,cy*distance-.7*sy));if(!this.cameraReady){this.camera.position.copy(desired);this.cameraAt.copy(target);this.cameraReady=true}else{this.camera.position.lerp(desired,1-Math.exp(-delta*9));this.cameraAt.lerp(target,1-Math.exp(-delta*9))}this.camera.lookAt(this.cameraAt);this.sun.position.set(pos.x-20,35,pos.z+15);this.sun.target.position.copy(pos);this.sun.target.updateMatrixWorld();
+      const p=this.entities.get('p'+myId);this.flash.intensity=me.firing&&Math.sin(this.tick*45)>.3?4:0;if(p)this.flash.position.copy(p.obj.position).add(this.tmpFlash.set(Math.cos(aim)*.6,1.25,Math.sin(aim)*.6));
     }
     for(let i=0;i<this.bulletPool.length;i++){const b=state.bullets[i],m=this.bulletPool[i];m.visible=!!b;if(b){const p=this.world(b.x,b.y);m.position.set(p[0],1.2,p[2]);m.scale.set(1,1,b.enemy?1:3);m.material=b.enemy?this.hostileMaterial:this.bulletMaterial}}
     const a=this.rainGeo.attributes.position;for(let i=0;i<a.count;i++){a.array[i*3+1]-=delta*13;if(a.array[i*3+1]<0)a.array[i*3+1]=18}a.needsUpdate=true;
@@ -124,5 +126,15 @@ export class NightfallScene {
   }
   debugActor(id){const e=this.entities.get('p'+id);if(!e?.model)return null;e.obj.updateMatrixWorld(true);e.model.traverse(n=>{if(n.isSkinnedMesh){n.skeleton.update();n.computeBoundingBox()}});const b=new THREE.Box3().setFromObject(e.obj);return {size:b.getSize(new THREE.Vector3()).toArray(),center:b.getCenter(new THREE.Vector3()).toArray(),feet:b.min.clone().project(this.camera).toArray(),head:b.max.clone().project(this.camera).toArray(),root:e.obj.position.toArray(),modelPosition:e.model.position.toArray(),source:e.assetSizing}}
   resize(){const w=this.canvas.clientWidth,h=this.canvas.clientHeight;if(w&&h&&(w!==this.width||h!==this.height)){this.renderer.setSize(w,h,false);this.camera.aspect=w/h;this.camera.updateProjectionMatrix();this.width=w;this.height=h}}
-  dispose(){this.renderer.dispose()}
+  dispose(){
+    for(const e of this.entities.values()){e.mixer?.stopAllAction();e.obj.removeFromParent();e.shadow?.geometry?.dispose();e.shadow?.material?.dispose();if(e.model)e.model.traverse(n=>{if(n.isMesh)for(const m of Array.isArray(n.material)?n.material:[n.material])m.dispose()})}
+    this.entities.clear();
+    this.bulletGeo?.dispose();this.rainGeo?.dispose();
+    this.bulletMaterial?.dispose();this.hostileMaterial?.dispose();this.litGlassMaterial?.dispose();
+    for(const material of this.materials.values())material.dispose();
+    for(const material of Object.values(this.pbr||{})){material?.map?.dispose();material?.normalMap?.dispose();material?.roughnessMap?.dispose();material?.dispose()}
+    this.fabric?.dispose();
+    Object.values(this.geo).forEach(g=>g.dispose());
+    this.renderer.dispose();
+  }
 }

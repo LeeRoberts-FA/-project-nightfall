@@ -24,6 +24,7 @@ jobs:
           node --check server.js
           node --check public/game.js
           if [ -f scripts/open-weights-agent.cjs ]; then node --check scripts/open-weights-agent.cjs; fi
+          if [ -f scripts/huggingface-asset-scout.cjs ]; then node --check scripts/huggingface-asset-scout.cjs; fi
           node --input-type=module --check < public/scene3d.js
           for file in tests/*.test.js; do node --check "$file"; done
       - name: Game and network integration tests

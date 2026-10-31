@@ -34,9 +34,24 @@ if(mobileControls.renderScale>1.3)throw Error('Mobile WebGL backing resolution e
 await page.evaluate(()=>window.scrollTo(0,0));const preview=await page.screenshot({type:'jpeg',quality:80,timeout:20000});
 fs.mkdirSync('test-results',{recursive:true});fs.writeFileSync(path.join('test-results','mobile-combat.jpg'),preview);const report={url,...result,console:logs.slice(0,12),pageErrors:failures,requestsFailed:failedRequests.slice(0,12),previewBytes:preview.length};fs.writeFileSync(path.join('test-results','mobile-report.json'),JSON.stringify(report,null,2));process.stdout.write('NIGHTFALL_VISUAL_REPORT:'+JSON.stringify(report)+'\n');
 if(!result.visible||!result.threeCanvasPresent||result.canvasWidth<100||result.canvasHeight<100)throw Error('3D combat canvas did not initialize with a usable size');if(!result.visual?.loadedCharacters?.includes('survivor')||!result.visual?.loadedCharacters?.includes('zombie')||result.visual.displayedCharacterModels<2)throw Error('3D character assets did not load and replace placeholder figures');if(!result.visual.playerVisible||Math.abs(result.visual.playerProjected?.x??99)>.75||Math.abs(result.visual.playerProjected?.y??99)>.75)throw Error('Playable character model not framed in on-screen camera');if(result.visual.drawCalls>450)throw Error('Mobile draw-call budget exceeded: '+result.visual.drawCalls);const bounds=result.visual.actorGeometry;if(!bounds||bounds.size[1]<1.5||bounds.size[1]>2.4||bounds.size[0]>2.5||bounds.head[1]>1||bounds.feet[1]<-1)throw Error('Animated soldier proportions or head-to-feet framing failed: '+JSON.stringify(bounds));if(bounds.head[1]-bounds.feet[1]<.24)throw Error('Character occupies too little screen height to read its details');if(!result.visual.pbrTexturesReady)throw Error('PBR surface textures did not load in browser');
-await page.keyboard.down('w');await page.waitForTimeout(600);await page.keyboard.up('w');
-const moved=await page.evaluate(()=>window.__nightfallVisualReport?.().playerWorld);
-if(!moved||Math.hypot(moved[0]-result.visual.playerWorld[0],moved[2]-result.visual.playerWorld[2])<.2)throw Error('Keyboard movement did not move the networked character');
+// Test the authoritative networked soldier, not a potentially stale single 3D frame.
+// Explicit focus is required when Chromium has taken screenshots / switched contexts.
+await page.bringToFront();
+const keyboardStart=await waitNetwork(page,r=>r.phase==='game'&&r.players.some(p=>p.id===r.playerId&&p.alive),'keyboard movement baseline');
+const initial=keyboardStart.players.find(p=>p.id===keyboardStart.playerId);
+await page.evaluate(()=>document.activeElement?.blur());
+await page.keyboard.down('w');
+try{
+  await waitNetwork(page,r=>{
+    const p=r.players.find(p=>p.id===r.playerId);
+    return !!(p&&p.alive&&p.y<initial.y-12);
+  },'keyboard W movement — player must advance north at least 12 server world units');
+}finally{await page.keyboard.up('w')}
+const keyboardFinish=await page.evaluate(()=>window.__nightfallNetworkReport());
+const moved=keyboardFinish.players.find(p=>p.id===keyboardFinish.playerId);
+if(!moved||moved.y>=initial.y-12)throw Error('W-key gameplay movement failed: '+JSON.stringify({initial,moved,activeElement:await page.evaluate(()=>document.activeElement?.tagName)}));
+console.log('NIGHTFALL_KEYBOARD_MOVEMENT:'+JSON.stringify({from:initial,to:moved}));
+
 // Real browser Touch Events instead of mouse simulation: ensures transparent
 // render overlay cannot steal iPhone thumbstick input.
 const cdp=await context.newCDPSession(page);

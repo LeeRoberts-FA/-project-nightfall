@@ -52,11 +52,17 @@ if(await page.locator('#home').evaluate(el=>el.scrollWidth>el.clientWidth+2))thr
 await page.setViewportSize({width:800,height:600});await page.locator('#name').fill('QA HOST');await page.locator('#create').click();
 await page.waitForFunction(()=>!document.getElementById('lobby').classList.contains('hidden'));
 const code=await page.locator('#roomcode').textContent();
+const invitation=(await page.locator('#inviteLink').textContent()).trim();
+if(new URL(invitation).searchParams.get('join')!==code)throw Error('Lobby invitation link does not match the created squad');
+if((await page.locator('#hint').textContent()).includes('2+ OPERATIVES CONNECTED'))throw Error('Lobby incorrectly claims the one-player room is ready');
 const guestContext=await browser.newContext({viewport:{width:800,height:600}}),guest=await guestContext.newPage();
 guestPage=guest;guest.on('console',msg=>{if(msg.type()==='error'||msg.type()==='warning')logs.push('Guest: '+msg.text().slice(0,400))});guest.on('pageerror',err=>failures.push('Guest: '+err.message));
-await guest.goto(url,{waitUntil:'domcontentloaded'});
+await guest.goto(invitation,{waitUntil:'domcontentloaded'});
 await guest.waitForFunction(()=>document.querySelector('#status')?.textContent?.includes('ONLINE')&&document.querySelector('#renderStatus')?.dataset.ready==='true',null,{timeout:60000});
-await guest.locator('#name').fill('QA GUEST');await guest.locator('#code').fill(code);await guest.locator('#join').click();
+if(await guest.locator('#inviteBanner').evaluate(el=>el.classList.contains('hidden')))throw Error('Shared invitation banner was not displayed');
+if((await guest.locator('#code').inputValue())!==code)throw Error('Shared invitation code was not prefilled');
+if((await guest.locator('#join').textContent()).trim()!=='JOIN THIS SQUAD →')throw Error('Guest join action not clear');
+await guest.locator('#name').fill('QA GUEST');await guest.locator('#join').click();
 await page.waitForFunction(()=>document.querySelector('#count')?.textContent==='2/4');
 await page.locator('#start').click();
 await guest.bringToFront();await waitNetwork(guest,report=>report.players.length===2&&report.phase==='game','guest deployment');
@@ -65,7 +71,7 @@ const host=await waitNetwork(page,report=>report.players.some(p=>p.id===report.p
 const direction=hostStart.x>1500?-1:1,key=direction===1?'d':'a';
 await page.keyboard.down(key);try{await waitNetwork(guest,report=>report.players.some(p=>p.id===host.playerId&&p.alive&&(p.x-hostStart.x)*direction>25),'host movement on guest')}finally{await page.keyboard.up(key)};
 await guest.bringToFront();await guest.screenshot({path:'test-results/coop-guest.jpg',type:'jpeg',quality:80});
-console.log('NIGHTFALL_COOP_BROWSER: two isolated contexts joined, deployed and replicated host movement');
+console.log('NIGHTFALL_COOP_BROWSER: guest followed shareable invite link, auto-filled room code, joined, deployed and replicated host movement');
 await guestContext.close();
 if(failures.length)throw Error('Browser JS exceptions: '+failures.join('; '));
 if(logs.some(x=>/asset failed|3d frame error|3d initialization|failed to load resource|module/i.test(x)))throw Error('3D renderer/asset load error: '+logs.join('; '));

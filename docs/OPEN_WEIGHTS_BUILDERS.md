@@ -4,6 +4,7 @@ These are **actual, bounded coding workers** running on standard CPU GitHub Acti
 
 - **Gameplay builder**: Ollama + `qwen2.5-coder:1.5b`; reads the mobile control and shooting code in `public/game.js`.
 - **3D visuals builder**: Ollama + `deepseek-coder:1.3b`; reads character animation and weapons code in `public/scene3d.js`.
+- **Hugging Face asset scout**: Public Hugging Face Hub API, metadata-only; searches 3D character and zombie datasets for GLB/FBX files and reports license status. No paid inference, downloads, or automatic asset installation.
 - **Build/test guard**: the harness checks each generated single-file replacement, runs JavaScript syntax and `npm test`, and rejects unacceptable candidates.
 - **Existing independent reviewers**: Nightfall Quality Gate checks real touch/keyboard/multiplayer with Chromium, CodeQL scans source, Dependabot proposes dependency updates, and the pinned-asset sentinel checks licensing and downloads.
 

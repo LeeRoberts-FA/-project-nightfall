@@ -1,0 +1,80 @@
+name: Nightfall Free Open-Weight Builder Agents
+
+# Independent coding models on temporary, standard public-repo GitHub CPU runners.
+# No Codex, Copilot credits, hosted inference, laptop, paid GPUs or auto deploy.
+# Output code is a proposal artifact, never pushed or merged.
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/open-weights-builders.yml'
+      - 'scripts/open-weights-agent.cjs'
+  schedule:
+    - cron: '37 12 * * 1'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nightfall-open-weights-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  independent-builders:
+    name: ${{ matrix.role }} (open model; no inference credits)
+    runs-on: ubuntu-latest
+    timeout-minutes: 16
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - role: gameplay
+            model: qwen2.5-coder:1.5b
+          - role: visuals
+            model: deepseek-coder:1.3b
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Nightfall pinned assets
+        run: npm ci
+      - name: Get verified Ollama CPU runner binary (v0.40.11)
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fL --retry 3 --connect-timeout 20 \
+            https://github.com/ollama/ollama/releases/download/v0.40.11/ollama-linux-amd64.tar.zst \
+            -o "$RUNNER_TEMP/ollama-linux-amd64.tar.zst"
+          echo "7bedab90dd122661be78798e9f0edf37fccf0cccf2699d2c58ea1a3afdc04b6d  $RUNNER_TEMP/ollama-linux-amd64.tar.zst" | sha256sum --check
+          sudo tar --use-compress-program=zstd -xf "$RUNNER_TEMP/ollama-linux-amd64.tar.zst" -C /usr/local
+          ollama --version
+      - name: Start ephemeral localhost Ollama (CPU only)
+        shell: bash
+        run: |
+          set -euo pipefail
+          OLLAMA_HOST=127.0.0.1:11434 OLLAMA_NUM_PARALLEL=1 ollama serve > "$RUNNER_TEMP/ollama.log" 2>&1 &
+          for i in $(seq 1 40); do
+            if curl -fsS http://127.0.0.1:11434/api/tags >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          tail -60 "$RUNNER_TEMP/ollama.log"
+          exit 1
+      - name: Download selected open-weight model
+        env:
+          AGENT_MODEL: ${{ matrix.model }}
+        run: ollama pull "$AGENT_MODEL"
+      - name: Generate, syntax-check and integration-test one scoped code patch
+        env:
+          AGENT_ID: ${{ matrix.role }}
+          AGENT_MODEL: ${{ matrix.model }}
+        run: node scripts/open-weights-agent.cjs
+      - name: Publish candidate patch artifact (no commits, PRs or deployment)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: open-weights-${{ matrix.role }}-proposal
+          path: agent-proposals/${{ matrix.role }}/
+          retention-days: 5
+          if-no-files-found: warn

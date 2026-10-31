@@ -10,6 +10,9 @@ on:
     paths:
       - '.github/workflows/open-weights-builders.yml'
       - 'scripts/open-weights-agent.cjs'
+      - 'scripts/huggingface-asset-scout.cjs'
+      - 'public/game.js'
+      - 'public/scene3d.js'
   schedule:
     - cron: '37 12 * * 1'
 
@@ -76,5 +79,25 @@ jobs:
         with:
           name: open-weights-${{ matrix.role }}-proposal
           path: agent-proposals/${{ matrix.role }}/
+          retention-days: 5
+          if-no-files-found: warn
+
+  huggingface-asset-scout:
+    name: Hugging Face public 3D source scout (metadata only)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Search public character/GLB repositories and inspect licensing metadata
+        run: node scripts/huggingface-asset-scout.cjs
+      - name: Publish candidate source report (not approved assets)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: huggingface-free-asset-research
+          path: agent-proposals/huggingface/
           retention-days: 5
           if-no-files-found: warn

@@ -4,6 +4,13 @@ name: Nightfall Free CodeQL Security Agent
 # Schedule/manual only so it does not hold up submission or flood PR notifications.
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/codeql-public.yml'
+      - 'server.js'
+      - 'public/**'
+      - 'scripts/**'
   schedule:
     - cron: '35 12 * * 1'
 

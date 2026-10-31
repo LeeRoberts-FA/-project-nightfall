@@ -1,0 +1,31 @@
+name: Nightfall Free CodeQL Security Agent
+
+# Public repo: official GitHub CodeQL is free.
+# Schedule/manual only so it does not hold up submission or flood PR notifications.
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '35 12 * * 1'
+
+permissions:
+  actions: read
+  contents: read
+  security-events: write
+
+jobs:
+  scan:
+    name: JavaScript security analysis
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up CodeQL
+        uses: github/codeql-action/init@v4
+        with:
+          languages: javascript-typescript
+          build-mode: none
+          queries: security-extended
+      - name: Analyze Nightfall source
+        uses: github/codeql-action/analyze@v4
+        with:
+          category: /language:javascript-typescript

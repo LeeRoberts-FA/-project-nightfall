@@ -14,3 +14,36 @@ test('two real sockets receive movement from the same authoritative squad state'
  const [a,b]=await Promise.all([moved(host),moved(guest)]);assert.equal(a.s.code,b.s.code);assert.ok(Math.abs(a.p.x-b.p.x)<35);assert.ok(a.p.ammo<30&&b.p.ammo<30,'Firing and magazine state must replicate to both clients');
  }finally{for(const c of sockets)c.close();proc.kill()}
 });
+
+test('secure player session resumes after WebSocket drop without losing squad host or XP',async()=>{
+ const port=26600+Math.floor(Math.random()*800),proc=spawn(process.execPath,['server.js'],{env:{...process.env,PORT:String(port)}}),sockets=[];
+ try {
+  await waitFor('http://127.0.0.1:'+port+'/health');
+  const host=await client(port),guest=await client(port);sockets.push(host,guest);
+  const hw=host.next('welcome');host.send({type:'create',mission:'outbreak',difficulty:'recruit',name:'LEADER'});
+  const identity=await hw;assert.match(identity.resumeToken,/^[0-9a-f]{48}$/);
+  const gw=guest.next('welcome');guest.send({type:'join',code:identity.code,name:'ALLIED'});await gw;
+  const started=host.next('started');host.send({type:'start'});await started;
+  await host.next('snapshot');
+  host.close();await new Promise(done=>setTimeout(done,120));
+  const bad=await client(port);sockets.push(bad);
+  const error=bad.next('error');bad.send({type:'resume',code:identity.code,token:'0'.repeat(48)});
+  assert.match((await error).message,/Session expired/);
+  const restored=await client(port);sockets.push(restored);
+  const welcome=restored.next('welcome'),resumed=restored.next('started');
+  restored.send({type:'resume',code:identity.code,token:identity.resumeToken});
+  const w=await welcome;assert.equal(w.you,identity.you,'restored the same operative/player identity');
+  assert.equal(w.resumeToken,identity.resumeToken);assert.equal(w.resumed,true);
+  const match=await resumed;assert.equal(match.room.phase,'playing');assert.equal(match.room.host,identity.you);
+  const snapshot=(await restored.next('snapshot')).state;
+  assert.equal(snapshot.players.filter(p=>p.id===identity.you).length,1,'squad slot is not duplicated');
+  restored.send({type:'input',mx:1,my:0,angle:0,firing:true});
+  const original=snapshot.players.find(p=>p.id===identity.you);
+  let advanced=false;
+  for(let n=0;n<35;n++){
+    const now=(await guest.next('snapshot')).state.players.find(p=>p.id===identity.you);
+    if(now.x>original.x+16){advanced=true;break}
+  }
+  assert.equal(advanced,true,'resumed player movement replicates to another physical socket');
+ }finally{for(const c of sockets)c.close();proc.kill()}
+});

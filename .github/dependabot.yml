@@ -1,0 +1,33 @@
+# Free GitHub-managed dependency maintenance for the public Nightfall repo.
+# Dependabot opens reviewable PRs and never merges or deploys them.
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "10:00"
+      timezone: "America/New_York"
+    open-pull-requests-limit: 2
+    labels:
+      - "dependencies"
+    commit-message:
+      prefix: "deps"
+    # Graphics engine upgrades need a measured visual QA pass before adoption.
+    ignore:
+      - dependency-name: "three"
+        update-types:
+          - "version-update:semver-major"
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "10:00"
+      timezone: "America/New_York"
+    open-pull-requests-limit: 2
+    labels:
+      - "dependencies"
+    commit-message:
+      prefix: "ci"

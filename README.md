@@ -1,6 +1,8 @@
 # PROJECT NIGHTFALL
 
-![Project branding](assets/branding/banner.svg)
+![Project branding](assets/branding/portfolio-cover.jpeg)
+
+*Illustrative concept artwork; displayed metrics and interface details are not verified production results.*
 
 Multiplayer co-op action RPG shooter for Handshake AI's **Create a Multiplayer Game** challenge.
 

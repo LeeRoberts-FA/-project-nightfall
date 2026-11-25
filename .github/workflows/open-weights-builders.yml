@@ -38,7 +38,7 @@ jobs:
             model: deepseek-coder:1.3b
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: '22'
       - name: Install Nightfall pinned assets
@@ -88,7 +88,7 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: '22'
       - name: Search public character/GLB repositories and inspect licensing metadata

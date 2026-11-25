@@ -38,6 +38,17 @@ export class NightfallScene {
   setupTextures(){const loader=new THREE.TextureLoader();const load=(name,color,repeat)=>{const t=loader.load('/textures/'+name);t.wrapS=t.wrapT=THREE.RepeatWrapping;t.repeat.set(...repeat);t.anisotropy=Math.min(4,this.renderer.capabilities.getMaxAnisotropy());if(color)t.colorSpace=THREE.SRGBColorSpace;return t};const surface=(name,repeat,roughness)=>new THREE.MeshStandardMaterial({map:load(name+'-color.webp',true,repeat),normalMap:load(name+'-normal.webp',false,repeat),roughnessMap:load(name+'-rough.webp',false,repeat),normalScale:new THREE.Vector2(.4,.4),roughness});this.pbr={asphalt:surface('asphalt',[12,8],.63),bricks:surface('brick',[2,3],.96),concrete:surface('concrete',[3,2],.9)};
     // Fine woven grain shared by uniforms; geometry and material groups retain original art detail.
     const c=document.createElement('canvas');c.width=c.height=128;const ctx=c.getContext('2d');ctx.fillStyle='#a2a090';ctx.fillRect(0,0,128,128);for(let i=0;i<128;i+=2){ctx.fillStyle=i%4?'#898b7a':'#b5b3a3';ctx.fillRect(i,0,1,128);ctx.fillStyle='#6c706844';ctx.fillRect(0,i,128,1)}this.fabric=new THREE.CanvasTexture(c);this.fabric.wrapS=this.fabric.wrapT=THREE.RepeatWrapping;this.fabric.repeat.set(5,5);
+    // Original, reusable scarred-cloth texture: visibly different from the clean soldier uniform.
+    const infected=document.createElement('canvas');infected.width=infected.height=256;
+    const grunge=infected.getContext('2d');grunge.fillStyle='#ac9b89';grunge.fillRect(0,0,256,256);
+    let seed=3719;const random=()=>{seed=(seed*1664525+1013904223)>>>0;return seed/4294967296};
+    for(let i=0;i<380;i++){const x=random()*256,y=random()*256,rx=1+random()*15,ry=1+random()*9;
+      grunge.fillStyle=i%5===0?'#4b2420':i%3===0?'#6a5d49':'#817769';
+      grunge.globalAlpha=.12+random()*.34;grunge.beginPath();grunge.ellipse(x,y,rx,ry,random()*Math.PI,0,Math.PI*2);grunge.fill()}
+    grunge.globalAlpha=.6;for(let i=0;i<44;i++){const x=random()*256,y=random()*256;grunge.strokeStyle=i%2?'#412922':'#d0be9b';grunge.lineWidth=.4+random()*1.2;grunge.beginPath();grunge.moveTo(x,y);grunge.lineTo(x+(random()-.5)*24,y+(random()-.5)*36);grunge.stroke()}
+    grunge.globalAlpha=1;this.infectedFabric=new THREE.CanvasTexture(infected);
+    this.infectedFabric.colorSpace=THREE.SRGBColorSpace;this.infectedFabric.wrapS=this.infectedFabric.wrapT=THREE.RepeatWrapping;
+    this.infectedFabric.repeat.set(2,2);
   }
   sign(text,w=6,h=1,color='#d7c6a4',bg='#17252a'){const c=document.createElement('canvas');c.width=768;c.height=128;const ctx=c.getContext('2d');ctx.fillStyle=bg;ctx.fillRect(0,0,768,128);ctx.strokeStyle=color;ctx.lineWidth=5;ctx.strokeRect(8,8,752,112);ctx.fillStyle=color;ctx.textAlign='center';ctx.textBaseline='middle';ctx.font='bold 43px sans-serif';ctx.fillText(text,384,66,722);const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;const p=new THREE.Mesh(new THREE.PlaneGeometry(w,h),new THREE.MeshStandardMaterial({map:t,roughness:.7,emissive:color,emissiveIntensity:.12}));return p}
   buildWorld(){if(this.worldGroup)this.scene.remove(this.worldGroup);const g=this.worldGroup=new THREE.Group();this.scene.add(g);this.propSlots=[];
@@ -92,12 +103,47 @@ export class NightfallScene {
     // The distributed GLB is saved prone. Measure the evaluated standing skeleton, never its bind pose.
     const reference=new THREE.AnimationMixer(model);reference.clipAction(asset.animations.find(c=>c.name==='idle')||asset.animations[0]).play();reference.update(.05);model.updateMatrixWorld(true);model.traverse(n=>{if(n.isSkinnedMesh){n.skeleton.update();n.computeBoundingBox()}});
     const box=new THREE.Box3().setFromObject(model);const dims=box.getSize(new THREE.Vector3());const factor=1.82/Math.max(.01,dims.y);model.scale.setScalar(factor);const center=box.getCenter(new THREE.Vector3());model.position.set(-center.x*factor,-box.min.y*factor,-center.z*factor);entry.obj.add(model);entry.model=model;reference.stopAllAction();
-    const enemy=entry.type==='zombie',bloater=entry.kind==='bloater';entry.obj.scale.setScalar(entry.boss?2.6:bloater?1.45:1);
-    model.traverse(n=>{if(!n.isMesh)return;n.castShadow=true;n.receiveShadow=true;const apply=source=>{const m=source.clone();m.side=THREE.FrontSide;m.color.multiplyScalar(2.0);m.roughness=Math.max(.45,m.roughness);if(/fabric|clothes/i.test(m.name)){m.map=this.fabric;m.color.set(enemy?entry.kind==='runner'?0x68534a:0x6d7663:entry.kind==='medic'?0x5b7c69:entry.kind==='heavy'?0x5b6978:0x8c947c);m.roughness=.95;}if(enemy&&/flesh/i.test(m.name))m.color.set(entry.kind==='spitter'?0x94a06b:0x9d9b87);if(enemy&&/armor/i.test(m.name))m.color.set(0x3d4238);return m};n.material=Array.isArray(n.material)?n.material.map(apply):apply(n.material)});
+    const enemy=entry.type==='zombie',bloater=entry.kind==='bloater';
+    // Keep the existing rig, but give infected types non-identical height/width silhouettes.
+    if(entry.boss)entry.obj.scale.set(2.8,2.6,2.8);
+    else if(bloater)entry.obj.scale.set(1.48,1.37,1.32);
+    else if(enemy&&entry.kind==='runner')entry.obj.scale.set(.91,1.07,.91);
+    else if(enemy&&entry.kind==='spitter')entry.obj.scale.set(.99,1.12,.91);
+    else entry.obj.scale.setScalar(1);
+    model.traverse(n=>{if(!n.isMesh)return;n.castShadow=true;n.receiveShadow=true;const apply=source=>{
+      const m=source.clone();m.side=THREE.FrontSide;
+      const name=((n.name||'')+' '+(m.name||'')).toLowerCase();
+      m.roughness=Math.max(.6,m.roughness||0);
+      if(enemy){
+        // A reused military rig must not appear to be six healthy, identically dressed soldiers.
+        // Hide only clearly named protective headgear; keep the skeleton and body geometry intact.
+        if(/helmet|goggles|visor|faceplate|balaclava/.test(name)){m.visible=false;return m}
+        const palette=entry.kind==='runner'?0x746359:entry.kind==='spitter'?0x707759:bloater?0x645b52:0x77716a;
+        if(/flesh|face|skin|hand/.test(name)){m.color.setHex(entry.kind==='spitter'?0x85906b:0x93887f)}
+        else if(/fabric|clothes|cloth|uniform|pants|trouser|shirt|jacket/.test(name)){
+          m.map=this.infectedFabric;m.color.setHex(palette);
+        }else if(/armor|armour|vest|plate|tactical|strap|pouch|knee|boots|gloves/.test(name)){
+          m.color.setHex(0x35342f);
+        }else{
+          m.color.multiplyScalar(.65);
+        }
+        m.roughness=.98;m.metalness=0;
+        m.emissive?.setHex(0x000000);
+      }else{
+        m.color.multiplyScalar(1.6);
+        if(/fabric|clothes/.test(name)){m.map=this.fabric;m.color.setHex(entry.kind==='medic'?0x5b7c69:entry.kind==='heavy'?0x5b6978:0x8c947c);m.roughness=.95}
+      }
+      m.needsUpdate=true;return m;
+    };n.material=Array.isArray(n.material)?n.material.map(apply):apply(n.material)});
     entry.mixer=new THREE.AnimationMixer(model);const clips=asset.animations;const clip=(name,fallback)=>clips.find(c=>c.name===name)||clips.find(c=>c.name===fallback)||clips[0];
     entry.actions={idle:entry.mixer.clipAction(clip(enemy?'ready_idle':'aim_idle','idle')),move:entry.mixer.clipAction(clip(enemy?'run':'aim_run','walk')),attack:entry.mixer.clipAction(clip(enemy?'melee':'aim_idle','idle')),reload:entry.mixer.clipAction(clip('reload','aim_idle'))};
     entry.activeMotion=entry.actions.idle;entry.activeMotion.play();entry.mixer.update(.05);model.updateMatrixWorld(true);
-    if(enemy){entry.actions.move.timeScale=entry.kind==='runner'?1.35:.55;const wounds=this.mat(entry.kind==='spitter'?0x79883b:0x633c37,0,.95);for(let i=0;i<7;i++){const growth=new THREE.Mesh(this.geo.sphere,wounds);growth.position.set(Math.sin(i*2.4)*.24,.9+i*.11,.20+Math.cos(i)*.06);growth.scale.set(.075+(i%3)*.025,.09,.065);entry.obj.add(growth)}if(bloater||entry.boss){for(let i=0;i<8;i++){let tumor=this.mesh(entry.obj,'sphere',0x656348,[Math.sin(i*3)*.35,1+i*.08,Math.cos(i*2)*.22],[.19,.21,.16]);tumor.rotation.z=i*.4}}}
+    if(enemy){
+      // Remove floating sphere 'wounds' and tumor placeholders: they looked like red balls stuck to soldiers.
+      // The infection is represented by distressed cloth/skin materials and varied silhouettes instead.
+      entry.actions.move.timeScale=entry.kind==='runner'?1.5:bloater?.64:.78;
+      model.rotation.z=entry.kind==='runner'?.035:entry.kind==='spitter'?-.075:.065;
+    }
     else if(this.models.rifle){const weapon=this.models.rifle.scene.clone(true),holder=new THREE.Group();weapon.scale.setScalar(.47);weapon.position.set(0,.15*.47,.05*.47);weapon.getObjectByName('SpareMagazine')?.removeFromParent();holder.rotation.y=Math.PI;holder.add(weapon);entry.obj.add(holder);entry.weapon=holder;model.traverse(n=>{if(/RightHand$/.test(n.name))entry.hand=n});entry.handPoint=new THREE.Vector3();}
 
     entry.assetSizing={originalHeight:dims.y,originalDimensions:dims.toArray(),scale:factor};
@@ -124,5 +170,5 @@ export class NightfallScene {
   }
   debugActor(id){const e=this.entities.get('p'+id);if(!e?.model)return null;e.obj.updateMatrixWorld(true);e.model.traverse(n=>{if(n.isSkinnedMesh){n.skeleton.update();n.computeBoundingBox()}});const b=new THREE.Box3().setFromObject(e.obj);return {size:b.getSize(new THREE.Vector3()).toArray(),center:b.getCenter(new THREE.Vector3()).toArray(),feet:b.min.clone().project(this.camera).toArray(),head:b.max.clone().project(this.camera).toArray(),root:e.obj.position.toArray(),modelPosition:e.model.position.toArray(),source:e.assetSizing}}
   resize(){const w=this.canvas.clientWidth,h=this.canvas.clientHeight;if(w&&h&&(w!==this.width||h!==this.height)){this.renderer.setSize(w,h,false);this.camera.aspect=w/h;this.camera.updateProjectionMatrix();this.width=w;this.height=h}}
-  dispose(){for(const e of this.entities.values()){e.mixer?.stopAllAction();e.model?.traverse(n=>{if(n.isMesh)for(const m of Array.isArray(n.material)?n.material:[n.material])m?.dispose()});e.shadow?.geometry.dispose();e.shadow?.material.dispose()}this.entities.clear();for(const mesh of this.bulletPool||[])mesh.geometry?.dispose();this.bulletMaterial?.dispose();this.hostileMaterial?.dispose();this.rainGeo?.dispose();this.litGlassMaterial?.dispose();for(const material of this.materials.values())material.dispose();for(const material of Object.values(this.pbr||{})){material?.map?.dispose();material?.normalMap?.dispose();material?.roughnessMap?.dispose();material?.dispose()}this.fabric?.dispose();for(const g of Object.values(this.geo))g.dispose();const seen=new Set();for(const asset of new Set(Object.values(this.models))){asset?.scene?.traverse(n=>{if(!n.isMesh)return;if(n.geometry&&!seen.has(n.geometry)){seen.add(n.geometry);n.geometry.dispose()}for(const m of Array.isArray(n.material)?n.material:[n.material])if(m&&!seen.has(m)){seen.add(m);for(const val of Object.values(m))if(val?.isTexture&&!seen.has(val)){seen.add(val);val.dispose()}m.dispose()}})}this.renderer.dispose()}
+  dispose(){for(const e of this.entities.values()){e.mixer?.stopAllAction();e.model?.traverse(n=>{if(n.isMesh)for(const m of Array.isArray(n.material)?n.material:[n.material])m?.dispose()});e.shadow?.geometry.dispose();e.shadow?.material.dispose()}this.entities.clear();for(const mesh of this.bulletPool||[])mesh.geometry?.dispose();this.bulletMaterial?.dispose();this.hostileMaterial?.dispose();this.rainGeo?.dispose();this.litGlassMaterial?.dispose();for(const material of this.materials.values())material.dispose();for(const material of Object.values(this.pbr||{})){material?.map?.dispose();material?.normalMap?.dispose();material?.roughnessMap?.dispose();material?.dispose()}this.fabric?.dispose();this.infectedFabric?.dispose();for(const g of Object.values(this.geo))g.dispose();const seen=new Set();for(const asset of new Set(Object.values(this.models))){asset?.scene?.traverse(n=>{if(!n.isMesh)return;if(n.geometry&&!seen.has(n.geometry)){seen.add(n.geometry);n.geometry.dispose()}for(const m of Array.isArray(n.material)?n.material:[n.material])if(m&&!seen.has(m)){seen.add(m);for(const val of Object.values(m))if(val?.isTexture&&!seen.has(val)){seen.add(val);val.dispose()}m.dispose()}})}this.renderer.dispose()}
 }

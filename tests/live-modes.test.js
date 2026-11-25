@@ -47,3 +47,21 @@ test('secure player session resumes after WebSocket drop without losing squad ho
   assert.equal(advanced,true,'resumed player movement replicates to another physical socket');
  }finally{for(const c of sockets)c.close();proc.kill()}
 });
+
+
+test('HTTP security baseline applies across successful and error responses', async()=>{
+ const port=28000+Math.floor(Math.random()*1000),proc=spawn(process.execPath,['server.js'],{env:{...process.env,PORT:String(port)}});
+ const base='http://127.0.0.1:'+port;
+ try {
+  await waitFor(base+'/health');
+  for(const route of ['/','/health','/three.module.js','/favicon.svg','/not-a-real-file']) {
+   const r=await fetch(base+route);
+   assert.equal(r.headers.get('x-content-type-options'),'nosniff',route);
+   assert.equal(r.headers.get('referrer-policy'),'strict-origin-when-cross-origin',route);
+   if(route==='/health') assert.equal(r.headers.get('cache-control'),'no-store');
+   if(route==='/favicon.svg'){assert.equal(r.status,200);assert.match(r.headers.get('content-type'),/^image\/svg\+xml/);}
+   if(route==='/not-a-real-file')assert.equal(r.status,404);
+   await r.arrayBuffer();
+  }
+ }finally{proc.kill()}
+});
